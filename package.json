@@ -7,8 +7,14 @@
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
-    "clean": "rm -rf dist server.js",
+    "package": "pkg dist/server.cjs --out-path=build",
+    "clean": "rm -rf dist server.js build",
     "lint": "tsc --noEmit"
+  },
+  "pkg": {
+    "assets": [
+      "dist/**/*"
+    ]
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -29,6 +35,7 @@
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "pkg": "^5.8.1",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",

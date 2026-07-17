@@ -497,7 +497,9 @@ Provide an engaging, informative answer from the perspective of an ultimate car 
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = (process as any).pkg
+      ? path.join(__dirname)
+      : path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
@@ -506,6 +508,13 @@ Provide an engaging, informative answer from the perspective of an ultimate car 
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
+    
+    // Automatically open browser if running as a local standalone desktop app
+    if (process.env.NODE_ENV === "production" && !process.env.K_SERVICE && !process.env.RENDER) {
+      const url = `http://localhost:${PORT}`;
+      const start = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
+      exec(`${start} ${url}`);
+    }
   });
 }
 
