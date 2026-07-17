@@ -31,20 +31,15 @@ jobs:
       - name: Generate standalone executables using pkg
         run: |
           mkdir -p build
-          # Compile only for Windows using node18 target
+          # Compile only for Windows using node18 target and specify exact output path
           npx pkg dist/server.cjs \
             --targets node18-win-x64 \
-            --out-path build/
+            --output build/diecast-catalogue.exe
 
       - name: Prepare distribution packages
         run: |
           cd build
-          
-          # Windows Package
-          if [ -f "server-win.exe" ]; then
-            mv server-win.exe diecast-catalogue.exe
-            zip diecast-catalogue-windows.zip diecast-catalogue.exe
-          fi
+          zip diecast-catalogue-windows.zip diecast-catalogue.exe
 
       - name: Upload Build Artifacts to Actions Page
         uses: actions/upload-artifact@v4
