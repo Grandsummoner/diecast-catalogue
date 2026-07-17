@@ -31,77 +31,24 @@ jobs:
       - name: Generate standalone executables using pkg
         run: |
           mkdir -p build
-          # Compile for Windows, Linux, macOS (Intel), and macOS (Apple Silicon) using node18 target
+          # Compile only for Windows using node18 target
           npx pkg dist/server.cjs \
-            --targets node18-win-x64,node18-linux-x64,node18-macos-x64,node18-macos-arm64 \
+            --targets node18-win-x64 \
             --out-path build/
 
       - name: Prepare distribution packages
         run: |
           cd build
           
-          # 1. Windows Package
+          # Windows Package
           if [ -f "server-win.exe" ]; then
             mv server-win.exe diecast-catalogue.exe
             zip diecast-catalogue-windows.zip diecast-catalogue.exe
-          fi
-          
-          # 2. macOS Apple Silicon Package
-          if [ -f "server-macos-arm64" ]; then
-            mv server-macos-arm64 diecast-catalogue-silicon
-            chmod +x diecast-catalogue-silicon
-            zip diecast-catalogue-macos-silicon.zip diecast-catalogue-silicon
-          fi
-
-          # 3. macOS Intel Package
-          if [ -f "server-macos-x64" ]; then
-            mv server-macos-x64 diecast-catalogue-intel
-            chmod +x diecast-catalogue-intel
-            zip diecast-catalogue-macos-intel.zip diecast-catalogue-intel
-          fi
-
-          # 4. Linux Package
-          if [ -f "server-linux-x64" ]; then
-            mv server-linux-x64 diecast-catalogue-linux
-            chmod +x diecast-catalogue-linux
-            zip diecast-catalogue-linux.zip diecast-catalogue-linux
           fi
 
       - name: Upload Build Artifacts to Actions Page
         uses: actions/upload-artifact@v4
         with:
           name: desktop-executables
-          path: |
-            build/diecast-catalogue-windows.zip
-            build/diecast-catalogue-macos-silicon.zip
-            build/diecast-catalogue-macos-intel.zip
-            build/diecast-catalogue-linux.zip
+          path: build/diecast-catalogue-windows.zip
           retention-days: 7
-
-      - name: Create Release and Upload Assets
-        uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Release v1.0.${{ github.run_number }}
-          body: |
-            ## Standalone Desktop Applications 🚗
-            
-            Double-click and run! No command-line compilation or Node.js installations required.
-            
-            ### Downloads
-            - **Windows (x64)**: Download `diecast-catalogue-windows.zip`, extract, and double-click `diecast-catalogue.exe`.
-            - **macOS Apple Silicon (M1/M2/M3)**: Download `diecast-catalogue-macos-silicon.zip`, extract, and run `diecast-catalogue-silicon`.
-            - **macOS Intel**: Download `diecast-catalogue-macos-intel.zip`, extract, and run `diecast-catalogue-intel`.
-            - **Linux (x64)**: Download `diecast-catalogue-linux.zip`, extract, and run `diecast-catalogue-linux`.
-            
-            *Note: When running on Windows or macOS for the first time, you may need to grant security permissions (e.g., bypass Windows SmartScreen or macOS Gatekeeper) as these are self-signed standalone bundles.*
-          draft: false
-          prerelease: false
-          files: |
-            build/diecast-catalogue-windows.zip
-            build/diecast-catalogue-macos-silicon.zip
-            build/diecast-catalogue-macos-intel.zip
-            build/diecast-catalogue-linux.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
