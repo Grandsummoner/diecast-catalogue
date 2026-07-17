@@ -31,8 +31,8 @@ jobs:
       - name: Generate standalone executables using pkg
         run: |
           mkdir -p build
-          # Compile only for Windows using node18 target and specify exact output path
-          npx pkg dist/server.cjs \
+          # Compile only for Windows using node18 target, loading package.json options and assets
+          npx pkg . \
             --targets node18-win-x64 \
             --output build/diecast-catalogue.exe
 
