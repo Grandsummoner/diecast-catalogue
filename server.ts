@@ -6,19 +6,29 @@ import dotenv from "dotenv";
 import { exec } from "child_process";
 import fs from "fs";
 // @ts-ignore
-import { ZipArchive } from "archiver";
+import * as archiver from "archiver";
 
 dotenv.config();
 
-// Shared Gemini client setup on server-side
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+// Lazy-initialized Gemini client setup on server-side to prevent crash if key is missing on local machine
+let aiClient: GoogleGenAI | null = null;
+function getAiClient(): GoogleGenAI {
+  if (!aiClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY environment variable is required.");
     }
+    aiClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
-});
+  return aiClient;
+}
 
 // Helper to parse car identifier into clean parts (Year, Make, Model)
 function parseCarIdentifier(identifier: string) {
@@ -315,7 +325,7 @@ async function startServer() {
       res.setHeader("Content-Type", "application/zip");
       res.setHeader("Content-Disposition", "attachment; filename=diecast-project.zip");
 
-      const archive = new ZipArchive({
+      const archive = archiver("zip", {
         zlib: { level: 9 }
       });
 
@@ -387,7 +397,7 @@ Return the output strictly matching the requested JSON schema with collectabilit
 
       let parsedNuggets;
       try {
-        const response = await ai.models.generateContent({
+        const response = await getAiClient().models.generateContent({
           model: "gemini-3.5-flash",
           contents: prompt,
           config: {
@@ -438,34 +448,37 @@ Return the output strictly matching the requested JSON schema with collectabilit
         parsedNuggets = JSON.parse(responseText);
       } catch (geminiError: any) {
         // Log gracefully to avoid triggering error parsers in testing environments
-        console.log(`Using matching automotive metadata fallback for identifier: "${identifier}"`);
+        console.log(`Using matching automotive nuggets fallback for identifier: "${identifier}"`);
         parsedNuggets = generateFallbackNuggets(identifier);
       }
 
       res.json(parsedNuggets);
     } catch (error: any) {
-      console.error("Error generating nuggets:", error);
-      res.status(500).json({ error: error.message || "Failed to analyze car nuggets." });
+      console.error("Error in car-nuggets:", error);
+      res.status(500).json({ error: error.message || "Failed to generate automotive nuggets." });
     }
   });
 
-  // Custom QA Chat proxy with Gemini for deeper details
+  // Endpoint to chat with Gemini about a specific diecast model
   app.post("/api/ask-gemini", async (req, res) => {
     try {
       const { filename, carName, question } = req.body;
-      if (!question) {
-        return res.status(400).json({ error: "Question parameter is required." });
+      if ((!filename && !carName) || !question) {
+        return res.status(400).json({ error: "Missing identity attributes (filename or carName) or question parameter." });
       }
 
-      const identifier = carName || filename || "the diecast model";
-      const prompt = `The user is asking a question about the car model: "${identifier}".
-Question: "${question}"
+      const identifier = carName || filename;
+      
+      const prompt = `You are an expert automotive historian and diecast collector concierge.
+The user is asking a question about the vehicle identified by: "${identifier}".
+The question is: "${question}"
 
-Provide an engaging, informative answer from the perspective of an ultimate car enthusiast and collector. Limit response to around 150-200 words.`;
+Formulate an engaging, knowledgeable, and detailed response strictly focusing on the 1:1 real-world vehicle, its mechanical specifications, history, racing pedigree, or design features.
+Keep your response professional, historically accurate, and passionate about automotive culture. Avoid toy casting specifics unless asked. Make sure the response is formatted cleanly.`;
 
       let answerText = "";
       try {
-        const response = await ai.models.generateContent({
+        const response = await getAiClient().models.generateContent({
           model: "gemini-3.5-flash",
           contents: prompt,
           config: {
@@ -518,4 +531,27 @@ Provide an engaging, informative answer from the perspective of an ultimate car 
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Critical error starting server:", err);
+  
+  // Write to a local crash log file next to the executable so the user can diagnose startup issues
+  try {
+    fs.writeFileSync(
+      path.join(process.cwd(), "diecast-catalogue-crash.log"),
+      `CRITICAL ERROR STARTING SERVER:\n${err?.stack || err || "Unknown Error"}\n`
+    );
+  } catch (fsErr) {
+    console.error("Failed to write crash log:", fsErr);
+  }
+  
+  // If running locally as a standalone EXE, keep the console window open to let the user read the error
+  if (process.env.NODE_ENV === "production" && !process.env.K_SERVICE && !process.env.RENDER) {
+    console.log("\nPress Enter to exit...");
+    process.stdin.resume();
+    process.stdin.on("data", () => {
+      process.exit(1);
+    });
+  } else {
+    process.exit(1);
+  }
+});
