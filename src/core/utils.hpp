@@ -4,6 +4,10 @@
 #include <vector>
 #include "types.hpp"
 
+// GLFW OS-level callbacks
+void glfw_window_close_callback(GLFWwindow* window);
+void glfw_drop_callback(GLFWwindow* window, int count, const char** paths);
+
 // Texture Cache & Loading
 GLuint GetOrCreateTexture(const std::string& path);
 
