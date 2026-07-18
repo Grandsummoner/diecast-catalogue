@@ -14,7 +14,7 @@
 #include <windows.h>
 #include <winhttp.h>
 
-// Let GLFW automatically include standard GL and Win32 headers in correct order
+// Let GLFW include standard GL and Win32 headers in correct order
 #include "GLFW/glfw3.h"
 
 #include "imgui.h"
@@ -85,6 +85,12 @@ Theme g_ActiveTheme = THEME_NAVY;
 char g_SearchInput[128] = "";
 char g_ApiKeyInput[128] = "";
 
+// Dynamic OpenGL Texture Cache
+GLuint g_ActiveTextureID = 0;
+std::string g_ActiveTexturePath = "";
+int g_ActiveTextureWidth = 0;
+int g_ActiveTextureHeight = 0;
+
 // Undo/Redo stack buffers (Restricted to 10 snapshots)
 std::vector<HistoryState> g_UndoStack;
 std::vector<HistoryState> g_RedoStack;
@@ -119,6 +125,38 @@ char g_ChatInput[256] = "";
 char g_CuratorNotes[512] = "No curator remarks entered yet.";
 std::vector<std::pair<std::string, std::string>> g_ChatLog; // {User, Msg}
 int g_StarredCount = 0;
+
+// -------------------------------------------------------------
+// SECURE WORKSPACE TEXTURE LOADER (stb_image)
+// -------------------------------------------------------------
+
+void LoadActiveTexture(const std::string& path) {
+    if (g_ActiveTexturePath == path) return; // Already loaded
+
+    // Clean up older GPU memory allocation
+    if (g_ActiveTextureID != 0) {
+        glDeleteTextures(1, &g_ActiveTextureID);
+        g_ActiveTextureID = 0;
+    }
+    g_ActiveTexturePath = path;
+
+    int channels;
+    unsigned char* data = stbi_load(path.c_str(), &g_ActiveTextureWidth, &g_ActiveTextureHeight, &channels, 4);
+    if (data) {
+        glGenTextures(1, &g_ActiveTextureID);
+        glBindTexture(GL_TEXTURE_2D, g_ActiveTextureID);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, g_ActiveTextureWidth, g_ActiveTextureHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        stbi_image_free(data);
+    } else {
+        g_ActiveTextureID = 0;
+        g_ActiveTextureWidth = 0;
+        g_ActiveTextureHeight = 0;
+    }
+}
 
 // -------------------------------------------------------------
 // NATIVE WINHTTP SECURE HTTP CLIENT
@@ -413,57 +451,57 @@ void ApplyTheme(Theme theme) {
     ImGuiStyle& style = ImGui::GetStyle();
     ImVec4* colors = style.Colors;
 
-    style.WindowRounding = 6.0f;
-    style.ChildRounding = 6.0f;
-    style.FrameRounding = 4.0f;
-    style.GrabRounding = 4.0f;
-    style.PopupRounding = 4.0f;
-    style.ScrollbarRounding = 4.0f;
+    style.WindowRounding = 8.0f;     // Elegant modern rounded corners
+    style.ChildRounding = 8.0f;
+    style.FrameRounding = 6.0f;      // Smooth rounded buttons and fields
+    style.GrabRounding = 6.0f;
+    style.PopupRounding = 6.0f;
+    style.ScrollbarRounding = 6.0f;
     style.WindowBorderSize = 1.0f;
     style.ChildBorderSize = 1.0f;
-    style.FrameBorderSize = 1.0f;
+    style.FrameBorderSize = 0.0f;    // Less robotic flat frames
 
     if (theme == THEME_NAVY) {
-        colors[ImGuiCol_Text] = ImVec4(0.85f, 0.90f, 0.98f, 1.00f);
+        colors[ImGuiCol_Text] = ImVec4(0.88f, 0.92f, 0.98f, 1.00f);
         colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.08f, 0.12f, 1.00f);
         colors[ImGuiCol_ChildBg] = ImVec4(0.09f, 0.11f, 0.16f, 1.00f);
-        colors[ImGuiCol_Border] = ImVec4(0.15f, 0.22f, 0.35f, 1.00f);
+        colors[ImGuiCol_Border] = ImVec4(0.12f, 0.22f, 0.38f, 1.00f); // High-contrast blue accent borders
         colors[ImGuiCol_FrameBg] = ImVec4(0.05f, 0.07f, 0.10f, 1.00f);
         colors[ImGuiCol_FrameBgHovered] = ImVec4(0.12f, 0.18f, 0.28f, 1.00f);
         colors[ImGuiCol_FrameBgActive] = ImVec4(0.18f, 0.26f, 0.40f, 1.00f);
-        colors[ImGuiCol_Button] = ImVec4(0.10f, 0.16f, 0.26f, 1.00f);
-        colors[ImGuiCol_ButtonHovered] = ImVec4(0.15f, 0.25f, 0.45f, 1.00f);
-        colors[ImGuiCol_ButtonActive] = ImVec4(0.00f, 0.60f, 0.90f, 1.00f);
+        colors[ImGuiCol_Button] = ImVec4(0.12f, 0.20f, 0.32f, 1.00f); // Polished subtle steel button backgrounds
+        colors[ImGuiCol_ButtonHovered] = ImVec4(0.18f, 0.28f, 0.45f, 1.00f);
+        colors[ImGuiCol_ButtonActive] = ImVec4(0.00f, 0.60f, 0.95f, 1.00f); // Vibrant neon blue active state
         colors[ImGuiCol_Header] = ImVec4(0.12f, 0.20f, 0.32f, 1.00f);
         colors[ImGuiCol_HeaderHovered] = ImVec4(0.18f, 0.28f, 0.45f, 1.00f);
-        colors[ImGuiCol_HeaderActive] = ImVec4(0.00f, 0.60f, 0.90f, 1.00f);
+        colors[ImGuiCol_HeaderActive] = ImVec4(0.00f, 0.60f, 0.95f, 1.00f);
     } else if (theme == THEME_LIGHT) {
         colors[ImGuiCol_Text] = ImVec4(0.12f, 0.13f, 0.17f, 1.00f);
-        colors[ImGuiCol_WindowBg] = ImVec4(0.94f, 0.95f, 0.96f, 1.00f);
+        colors[ImGuiCol_WindowBg] = ImVec4(0.95f, 0.96f, 0.97f, 1.00f);
         colors[ImGuiCol_ChildBg] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-        colors[ImGuiCol_Border] = ImVec4(0.80f, 0.82f, 0.85f, 1.00f);
-        colors[ImGuiCol_FrameBg] = ImVec4(0.90f, 0.92f, 0.94f, 1.00f);
-        colors[ImGuiCol_FrameBgHovered] = ImVec4(0.85f, 0.87f, 0.90f, 1.00f);
-        colors[ImGuiCol_FrameBgActive] = ImVec4(0.80f, 0.82f, 0.85f, 1.00f);
-        colors[ImGuiCol_Button] = ImVec4(0.85f, 0.87f, 0.90f, 1.00f);
-        colors[ImGuiCol_ButtonHovered] = ImVec4(0.78f, 0.80f, 0.84f, 1.00f);
+        colors[ImGuiCol_Border] = ImVec4(0.85f, 0.87f, 0.90f, 1.00f);
+        colors[ImGuiCol_FrameBg] = ImVec4(0.92f, 0.94f, 0.96f, 1.00f);
+        colors[ImGuiCol_FrameBgHovered] = ImVec4(0.87f, 0.89f, 0.92f, 1.00f);
+        colors[ImGuiCol_FrameBgActive] = ImVec4(0.82f, 0.84f, 0.87f, 1.00f);
+        colors[ImGuiCol_Button] = ImVec4(0.88f, 0.90f, 0.93f, 1.00f);
+        colors[ImGuiCol_ButtonHovered] = ImVec4(0.80f, 0.83f, 0.87f, 1.00f);
         colors[ImGuiCol_ButtonActive] = ImVec4(0.18f, 0.20f, 0.24f, 1.00f);
-        colors[ImGuiCol_Header] = ImVec4(0.88f, 0.90f, 0.93f, 1.00f);
-        colors[ImGuiCol_HeaderHovered] = ImVec4(0.82f, 0.84f, 0.88f, 1.00f);
+        colors[ImGuiCol_Header] = ImVec4(0.90f, 0.92f, 0.95f, 1.00f);
+        colors[ImGuiCol_HeaderHovered] = ImVec4(0.84f, 0.86f, 0.90f, 1.00f);
         colors[ImGuiCol_HeaderActive] = ImVec4(0.18f, 0.20f, 0.24f, 1.00f);
     } else if (theme == THEME_BEIGE) {
-        colors[ImGuiCol_Text] = ImVec4(0.17f, 0.12f, 0.09f, 1.00f);
-        colors[ImGuiCol_WindowBg] = ImVec4(0.94f, 0.92f, 0.89f, 1.00f);
-        colors[ImGuiCol_ChildBg] = ImVec4(0.98f, 0.97f, 0.95f, 1.00f);
-        colors[ImGuiCol_Border] = ImVec4(0.83f, 0.78f, 0.73f, 1.00f);
-        colors[ImGuiCol_FrameBg] = ImVec4(0.91f, 0.89f, 0.86f, 1.00f);
-        colors[ImGuiCol_FrameBgHovered] = ImVec4(0.86f, 0.83f, 0.80f, 1.00f);
-        colors[ImGuiCol_FrameBgActive] = ImVec4(0.80f, 0.77f, 0.74f, 1.00f);
-        colors[ImGuiCol_Button] = ImVec4(0.88f, 0.84f, 0.79f, 1.00f);
-        colors[ImGuiCol_ButtonHovered] = ImVec4(0.80f, 0.76f, 0.70f, 1.00f);
+        colors[ImGuiCol_Text] = ImVec4(0.18f, 0.13f, 0.09f, 1.00f);
+        colors[ImGuiCol_WindowBg] = ImVec4(0.95f, 0.93f, 0.89f, 1.00f);
+        colors[ImGuiCol_ChildBg] = ImVec4(0.99f, 0.98f, 0.96f, 1.00f);
+        colors[ImGuiCol_Border] = ImVec4(0.85f, 0.80f, 0.75f, 1.00f);
+        colors[ImGuiCol_FrameBg] = ImVec4(0.92f, 0.90f, 0.87f, 1.00f);
+        colors[ImGuiCol_FrameBgHovered] = ImVec4(0.87f, 0.84f, 0.81f, 1.00f);
+        colors[ImGuiCol_FrameBgActive] = ImVec4(0.81f, 0.78f, 0.75f, 1.00f);
+        colors[ImGuiCol_Button] = ImVec4(0.89f, 0.85f, 0.80f, 1.00f);
+        colors[ImGuiCol_ButtonHovered] = ImVec4(0.81f, 0.77f, 0.72f, 1.00f);
         colors[ImGuiCol_ButtonActive] = ImVec4(0.31f, 0.23f, 0.19f, 1.00f);
-        colors[ImGuiCol_Header] = ImVec4(0.90f, 0.86f, 0.81f, 1.00f);
-        colors[ImGuiCol_HeaderHovered] = ImVec4(0.83f, 0.78f, 0.73f, 1.00f);
+        colors[ImGuiCol_Header] = ImVec4(0.91f, 0.87f, 0.82f, 1.00f);
+        colors[ImGuiCol_HeaderHovered] = ImVec4(0.84f, 0.79f, 0.74f, 1.00f);
         colors[ImGuiCol_HeaderActive] = ImVec4(0.31f, 0.23f, 0.19f, 1.00f);
     }
 }
@@ -554,6 +592,9 @@ int main() {
     ImGui::CreateContext();
     ApplyTheme(g_ActiveTheme);
 
+    // Global Font Scale - Enlarge default UI components (Size 2 bigger text constraint)
+    ImGui::GetIO().FontGlobalScale = 1.15f; 
+
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
 
@@ -611,7 +652,7 @@ int main() {
         ImGui::Begin("Workspace", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
         // -------------------------------------------------------------
-        // TOP STATS & CONTROLS BAR (Size 2 Fonts)
+        // TOP CONTROLS BAR (Polished flat buttons, clean icons)
         // -------------------------------------------------------------
         ImGui::BeginChild("TopBar", ImVec2(0, 45), true);
         
@@ -619,22 +660,22 @@ int main() {
         ImGui::TextColored(ImVec4(0.00f, 0.60f, 0.95f, 1.00f), "My Collection");
         
         ImGui::SameLine();
-        if (ImGui::Button("[ Save ]")) {
+        if (ImGui::Button("Save")) {
             exportWorkspace("workspace.zip");
         }
         ImGui::SameLine();
-        if (ImGui::Button("[ Undo ]")) {
+        if (ImGui::Button("Undo")) {
             ExecuteUndo();
         }
         ImGui::SameLine();
-        if (ImGui::Button("[ Redo ]")) {
+        if (ImGui::Button("Redo")) {
             ExecuteRedo();
         }
 
         ImGui::SameLine(320);
         ImGui::Text("Total: %zu | Roller: ", g_Catalog.size());
         ImGui::SameLine();
-        if (ImGui::Button("[ Gacha ]")) {
+        if (ImGui::Button("Gacha Spin")) {
             if (!g_GachaRolling) {
                 g_GachaRolling = true;
                 g_GachaTimer = 0.0f;
@@ -646,18 +687,18 @@ int main() {
         ImGui::SameLine(580);
         ImGui::Text("%s", g_SoundscapeNames[g_ActiveSoundscape]);
         ImGui::SameLine();
-        if (ImGui::Button("[ Toggle Ambient ]")) {
+        if (ImGui::Button("Toggle Ambient")) {
             g_ActiveSoundscape = (g_ActiveSoundscape + 1) % 4;
         }
 
         ImGui::SameLine((float)width - 200.0f);
-        if (ImGui::Button("[ Theme ]")) {
+        if (ImGui::Button("Theme")) {
             g_ActiveTheme = static_cast<Theme>((g_ActiveTheme + 1) % 3);
             ApplyTheme(g_ActiveTheme);
         }
 
         ImGui::SameLine((float)width - 110.0f);
-        if (ImGui::Button("[ Export ZIP ]")) {
+        if (ImGui::Button("Export ZIP")) {
             exportWorkspace("workspace.zip");
         }
         ImGui::EndChild();
@@ -666,17 +707,17 @@ int main() {
         float bodyHeight = (float)height - 65.0f;
 
         // -------------------------------------------------------------
-        // PANEL 1: LEFT FILE MANAGEMENT (25% Width)
+        // PANEL 1: LEFT FILE MANAGEMENT (Rounded elegant grids)
         // -------------------------------------------------------------
         ImGui::BeginChild("LeftPanel", ImVec2(panelWidth - 10.0f, bodyHeight), true);
         
         ImGui::Text("File Ingestion / Photo Banks:");
-        if (ImGui::Button("[ File Ingest ]")) {
+        if (ImGui::Button("File Ingest")) {
             g_PendingImportPaths = { "12-Tomica Subaru Sambar.JPG" };
             g_ShowImportConfirmPrompt = true;
         }
         ImGui::SameLine();
-        if (ImGui::Button("[ Folder Ingest ]")) {
+        if (ImGui::Button("Folder Ingest")) {
             g_PendingImportPaths = { "13-Crane.JPG", "14-Toyota.JPG" };
             g_ShowImportConfirmPrompt = true;
         }
@@ -684,22 +725,22 @@ int main() {
         ImGui::Separator();
         ImGui::InputText("##Search", g_SearchInput, IM_ARRAYSIZE(g_SearchInput));
         ImGui::SameLine();
-        ImGui::Button("[ Filter ]");
+        ImGui::Button("Filter");
 
         ImGui::Text("Selection Queue:");
-        if (ImGui::Button("[ Select All ]")) {
+        if (ImGui::Button("Select All")) {
             PushHistoryState();
             for (auto& car : g_Catalog) car.selected = true;
             g_UnsavedChanges = true;
         }
         ImGui::SameLine();
-        if (ImGui::Button("[ Deselect All ]")) {
+        if (ImGui::Button("Deselect All")) {
             PushHistoryState();
             for (auto& car : g_Catalog) car.selected = false;
             g_UnsavedChanges = true;
         }
         ImGui::SameLine();
-        if (ImGui::Button("[ Unload ]")) {
+        if (ImGui::Button("Unload")) {
             PushHistoryState();
             g_Catalog.erase(std::remove_if(g_Catalog.begin(), g_Catalog.end(), [](const DiecastCar& c) { return c.selected; }), g_Catalog.end());
             g_SelectedCarIndex = g_Catalog.empty() ? -1 : 0;
@@ -722,10 +763,13 @@ int main() {
             }
 
             ImGui::PushID(i);
-            // Dynamic card highlight
             bool isSelected = (g_SelectedCarIndex == i);
             if (isSelected) {
-                ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyle().Colors[ImGuiCol_HeaderActive]);
+                // Highlighting standard rounded corners on selected cards
+                ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyle().Colors[ImGuiCol_ButtonActive]);
+            } else {
+                // Polished modern visual contrast card backgrounds
+                ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyle().Colors[ImGuiCol_FrameBg]);
             }
 
             ImGui::BeginChild((std::string("CardGridChild##") + std::to_string(i)).c_str(), ImVec2(95, 95), true, ImGuiWindowFlags_NoScrollbar);
@@ -737,10 +781,7 @@ int main() {
             }
 
             ImGui::EndChild();
-
-            if (isSelected) {
-                ImGui::PopStyleColor();
-            }
+            ImGui::PopStyleColor();
             ImGui::PopID();
 
             if ((i + 1) % 3 != 0) {
@@ -749,19 +790,19 @@ int main() {
         }
         ImGui::EndChild();
 
-        ImGui::Button("[ Re-link root directory ]");
+        ImGui::Button("Re-link root directory");
         ImGui::EndChild();
 
         ImGui::SameLine();
 
         // -------------------------------------------------------------
-        // PANEL 2: MIDDLE VISUAL PRESENTATION STAGE (50% Width)
+        // PANEL 2: MIDDLE VISUAL PRESENTATION CANVAS (Real Photo Rendering)
         // -------------------------------------------------------------
         ImGui::BeginChild("MiddlePanel", ImVec2(panelWidth - 10.0f, bodyHeight), true);
         
         if (ImGui::BeginTabBar("DisplayStageTabs")) {
             
-            // MODE 1: SINGLE SHOWCASE VIEW
+            // MODE 1: SINGLE SHOWCASE VIEW (Decodes real folders/photos)
             if (ImGui::BeginTabItem("Showcase View")) {
                 if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
                     auto& car = g_Catalog[g_SelectedCarIndex];
@@ -769,7 +810,7 @@ int main() {
                     ImGui::Text("ASK COLLECTOR BOT:"); ImGui::SameLine();
                     ImGui::InputText("##BotPrompt", g_ChatInput, IM_ARRAYSIZE(g_ChatInput));
                     ImGui::SameLine();
-                    if (ImGui::Button("[ Ask ]")) {
+                    if (ImGui::Button("Ask")) {
                         std::string q = g_ChatInput;
                         if (!q.empty()) {
                             g_ChatLog.push_back({ "You", q });
@@ -783,29 +824,56 @@ int main() {
                     ImGui::Text("DIECAST IDENTIFIER: %s", car.filename.c_str());
                     ImGui::Text("TAGS: [ %s ]  [ + Add Tag ]", car.tags.c_str());
 
-                    // Visual Aspect Ratio Frame (Strictly 16:9 boundary bounds)
+                    // Visual Viewport Frame boundaries (Strictly 16:9)
                     ImDrawList* drawList = ImGui::GetWindowDrawList();
                     ImVec2 canvasCursor = ImGui::GetCursorScreenPos();
                     ImVec2 frameSize = ImVec2(panelWidth - 30.0f, 220.0f);
 
-                    // Matte fallback backdrop
+                    // Standard dark matte backdrop
                     drawList->AddRectFilled(canvasCursor, ImVec2(canvasCursor.x + frameSize.x, canvasCursor.y + frameSize.y), IM_COL32(8, 12, 18, 255));
-                    drawList->AddRect(canvasCursor, ImVec2(canvasCursor.x + frameSize.x, canvasCursor.y + frameSize.y), IM_COL32(0, 168, 255, 100), 4.0f, 0, 1.5f);
+                    drawList->AddRect(canvasCursor, ImVec2(canvasCursor.x + frameSize.x, canvasCursor.y + frameSize.y), IM_COL32(0, 168, 255, 100), 6.0f, 0, 1.5f);
 
-                    // Draggable viewport placeholder contents
-                    ImVec2 textPos = ImVec2(canvasCursor.x + (frameSize.x / 4.0f), canvasCursor.y + (frameSize.y / 2.0f) - 10.0f);
-                    drawList->AddText(textPos, IM_COL32(180, 180, 180, 255), "[ INVALID PHOTO / PATH UNRESOLVED ]");
+                    // Dynamic secure image loading pipeline
+                    LoadActiveTexture(car.folderPath);
+                    if (g_ActiveTextureID != 0) {
+                        // Letterbox calculation to display without distortion
+                        float canvasAspect = frameSize.x / frameSize.y;
+                        float imgAspect = (float)g_ActiveTextureWidth / (float)g_ActiveTextureHeight;
+                        ImVec2 displaySize;
+                        ImVec2 offset = ImVec2(0, 0);
 
-                    ImGui::Dummy(frameSize);
+                        if (imgAspect > canvasAspect) {
+                            displaySize.x = frameSize.x;
+                            displaySize.y = frameSize.x / imgAspect;
+                            offset.y = (frameSize.y - displaySize.y) / 2.0f;
+                        } else {
+                            displaySize.y = frameSize.y;
+                            displaySize.x = frameSize.y * imgAspect;
+                            offset.x = (frameSize.x - displaySize.x) / 2.0f;
+                        }
 
-                    // Manual Navigation Controls flanking the canvas
+                        // Align drawing viewport
+                        ImGui::SetCursorScreenPos(ImVec2(canvasCursor.x + offset.x, canvasCursor.y + offset.y));
+                        ImGui::Image((void*)(intptr_t)g_ActiveTextureID, displaySize);
+                        
+                        // Set Cursor back to Dummy bounds to ensure correct layout positioning
+                        ImGui::SetCursorScreenPos(canvasCursor);
+                        ImGui::Dummy(frameSize);
+                    } else {
+                        // Center warning text for missing photo files
+                        ImVec2 textPos = ImVec2(canvasCursor.x + (frameSize.x / 4.0f), canvasCursor.y + (frameSize.y / 2.0f) - 10.0f);
+                        drawList->AddText(textPos, IM_COL32(180, 180, 180, 255), "[ INVALID PHOTO / PATH UNRESOLVED ]");
+                        ImGui::Dummy(frameSize);
+                    }
+
+                    // Manual Scroll Controls flanking the canvas
                     ImGui::Spacing();
-                    if (ImGui::Button("[ <- PREVIOUS PHOTO ]", ImVec2((panelWidth / 2.0f) - 20.0f, 30.0f))) {
+                    if (ImGui::Button("Previous Photo", ImVec2((panelWidth / 2.0f) - 20.0f, 30.0f))) {
                         g_SelectedCarIndex = (g_SelectedCarIndex - 1 + g_Catalog.size()) % g_Catalog.size();
                         g_ChatLog.clear();
                     }
                     ImGui::SameLine();
-                    if (ImGui::Button("[ NEXT PHOTO -> ]", ImVec2((panelWidth / 2.0f) - 20.0f, 30.0f))) {
+                    if (ImGui::Button("Next Photo", ImVec2((panelWidth / 2.0f) - 20.0f, 30.0f))) {
                         g_SelectedCarIndex = (g_SelectedCarIndex + 1) % g_Catalog.size();
                         g_ChatLog.clear();
                     }
@@ -822,7 +890,7 @@ int main() {
             // MODE 2: TACTILE POLAROID SCATTER (Virtual Shoebox)
             if (ImGui::BeginTabItem("Polaroid Scatter")) {
                 ImGui::Text("Tabletop Desk - Drag and organize your collection scatter cards!");
-                if (ImGui::Button("[ Toss/Scatter Cards ]")) {
+                if (ImGui::Button("Toss/Scatter Cards")) {
                     g_PolaroidCards.clear();
                     for (int i = 0; i < (int)g_Catalog.size(); ++i) {
                         PolaroidCard pc;
@@ -869,7 +937,7 @@ int main() {
             // MODE 3: CURATOR BRACKET SHOWDOWNS (Versus)
             if (ImGui::BeginTabItem("Curator Showdown")) {
                 ImGui::Text("Showdown Challenge! Crown today's active showroom winner.");
-                if (ImGui::Button("[ Deal Versus Matchup ]") && g_Catalog.size() >= 2) {
+                if (ImGui::Button("Deal Versus Matchup") && g_Catalog.size() >= 2) {
                     g_ShowdownLeftIndex = std::rand() % g_Catalog.size();
                     g_ShowdownRightIndex = std::rand() % g_Catalog.size();
                     while (g_ShowdownLeftIndex == g_ShowdownRightIndex) {
@@ -888,7 +956,7 @@ int main() {
                     ImGui::TextWrapped("%s", carL.model.c_str());
                     ImGui::Separator();
                     ImGui::Text("Record: %d Wins", carL.showdownWins);
-                    if (ImGui::Button("[ Select Left ]")) {
+                    if (ImGui::Button("Select Left")) {
                         PushHistoryState();
                         carL.showdownWins++;
                         carL.showdownBattles++;
@@ -910,7 +978,7 @@ int main() {
                     ImGui::TextWrapped("%s", carR.model.c_str());
                     ImGui::Separator();
                     ImGui::Text("Record: %d Wins", carR.showdownWins);
-                    if (ImGui::Button("[ Select Right ]")) {
+                    if (ImGui::Button("Select Right")) {
                         PushHistoryState();
                         carR.showdownWins++;
                         carR.showdownBattles++;
@@ -1042,13 +1110,13 @@ int main() {
         if (ImGui::BeginPopupModal("Confirm Import Queue?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("Confirm ingestion queue? You are about to import %zu file(s) into your current workspace catalog.", g_PendingImportPaths.size());
             ImGui::Spacing();
-            if (ImGui::Button("[ Confirm Ingest ]", ImVec2(140, 0))) {
+            if (ImGui::Button("Confirm Ingest", ImVec2(140, 0))) {
                 finalizePendingImports();
                 g_ShowImportConfirmPrompt = false;
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("[ Cancel ]", ImVec2(100, 0))) {
+            if (ImGui::Button("Cancel", ImVec2(100, 0))) {
                 g_PendingImportPaths.clear();
                 g_ShowImportConfirmPrompt = false;
                 ImGui::CloseCurrentPopup();
@@ -1063,19 +1131,19 @@ int main() {
         if (ImGui::BeginPopupModal("Unsaved Workspace Changes!", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("You have unsaved changes in your metadata database.\nWould you like to save changes before exiting the application?");
             ImGui::Spacing();
-            if (ImGui::Button("[ Save and Exit ]", ImVec2(140, 0))) {
+            if (ImGui::Button("Save and Exit", ImVec2(140, 0))) {
                 exportWorkspace("workspace.zip");
                 glfwSetWindowShouldClose(window, GLFW_TRUE);
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("[ Discard and Exit ]", ImVec2(160, 0))) {
+            if (ImGui::Button("Discard and Exit", ImVec2(160, 0))) {
                 g_UnsavedChanges = false; // Bypass the intercept check
                 glfwSetWindowShouldClose(window, GLFW_TRUE);
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("[ Cancel ]", ImVec2(100, 0))) {
+            if (ImGui::Button("Cancel", ImVec2(100, 0))) {
                 g_ShowExitPrompt = false;
                 ImGui::CloseCurrentPopup();
             }
@@ -1097,6 +1165,11 @@ int main() {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
+    }
+
+    // Clean up textures on shutdown
+    if (g_ActiveTextureID != 0) {
+        glDeleteTextures(1, &g_ActiveTextureID);
     }
 
     // Cleanup and terminate structures
