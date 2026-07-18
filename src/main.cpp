@@ -2,12 +2,15 @@
 #include "utils.hpp"
 #include "theme.hpp"
 
-#include <algorithm> // Essential to resolve std::sort and std::transform
+#include <algorithm> // Critical: Resolves std::sort and std::transform errors
 #include <ctime>
 #include <cstdlib>
+#include <filesystem> // Essential to resolve filesystem operations
 
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+
+namespace fs = std::filesystem;
 
 int main() {
     if (!glfwInit()) return -1;
