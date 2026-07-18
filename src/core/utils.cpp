@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <fstream>
 #include <sstream>
+
+#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include "nlohmann/json.hpp"
 #include "miniz.h"
@@ -50,6 +52,8 @@ std::vector<std::string> g_PendingImportPaths;
 bool g_ShowImportConfirmPrompt = false;
 bool g_ShowExitPrompt = false;
 
+char g_SearchInput[128] = "";
+char g_ApiKeyInput[128] = "";
 char g_ChatInput[256] = "";
 char g_CuratorNotes[512] = "No curator remarks entered yet.";
 std::vector<std::pair<std::string, std::string>> g_ChatLog;
@@ -254,4 +258,31 @@ void finalizePendingImports() {
         applyOfflineSpecsAndTrivia(car); g_Catalog.push_back(car);
     }
     g_PendingImportPaths.clear(); g_SelectedCarIndex = (int)g_Catalog.size() - 1; g_UnsavedChanges = true;
+}
+
+// GLFW Window Close & Ingest Callbacks
+void glfw_window_close_callback(GLFWwindow* window) {
+    if (g_UnsavedChanges) { glfwSetWindowShouldClose(window, GLFW_FALSE); g_ShowExitPrompt = true; }
+}
+
+void glfw_drop_callback(GLFWwindow* window, int count, const char** paths) {
+    g_PendingImportPaths.clear();
+    for (int i = 0; i < count; ++i) scanAndQueuePath(paths[i]);
+    if (!g_PendingImportPaths.empty()) g_ShowImportConfirmPrompt = true;
+}
+
+// Gemini bot proxy
+std::string getGeminiChatResponse(const std::string& question, const DiecastCar& car) {
+    std::string key = g_ApiKeyInput; std::string carDesc = car.make + " " + car.model;
+    if (key.empty()) {
+        std::string q = question; std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+        if (q.find("engine") != std::string::npos || q.find("v8") != std::string::npos) return "The Grandview features a massive 16.2-liter naturally aspirated EF700 V8 diesel engine.";
+        if (q.find("collect") != std::string::npos || q.find("score") != std::string::npos) return "This Hino bus scores a 5.15/10. Because of strict emission cuts, almost no real operational examples exist today.";
+        return "That is an excellent point about the Hino Grandview! Is there any specific mechanical spec you would like to go over?";
+    }
+    std::string host = "generativelanguage.googleapis.com", path = "/v1beta/models/gemini-2.5-flash:generateContent?key=" + key;
+    json payload = {{"contents", {{{"parts", {{{"text", "You are an expert collector bot. Respond to this user question under 100 words about the vehicle " + carDesc + ": " + question}}}}}}}};
+    std::string rawRes = makeHttpsPostRequest(host, path, payload.dump());
+    try { auto j = json::parse(rawRes); return j["candidates"][0]["content"]["parts"][0]["text"].get<std::string>(); }
+    catch (...) { return "Failed to establish secure connections with Gemini. Returning local response instead."; }
 }
