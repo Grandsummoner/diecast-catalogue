@@ -2,43 +2,38 @@
   "name": "react-example",
   "private": true,
   "version": "0.0.0",
+  "bin": "dist/server.cjs",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
-    "package": "pkg dist/server.cjs --out-path=build",
     "clean": "rm -rf dist server.js build",
     "lint": "tsc --noEmit"
-  },
-  "pkg": {
-    "assets": [
-      "dist/**/*"
-    ]
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
-    "@vitejs/plugin-react": "^5.0.4",
-    "archiver": "^8.0.0",
-    "dotenv": "^17.2.3",
+    "archiver": "^6.0.2",
+    "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "lucide-react": "^0.546.0",
-    "motion": "^12.23.24",
-    "react": "^19.0.1",
-    "react-dom": "^19.0.1",
-    "vite": "^6.2.3"
+    "lucide-react": "^0.471.1",
+    "motion": "^12.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1",
+    "tailwindcss": "^4.1.14"
   },
   "devDependencies": {
-    "@types/archiver": "^8.0.0",
-    "@types/express": "^4.17.21",
-    "@types/node": "^22.14.0",
-    "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
-    "pkg": "^5.8.1",
-    "tailwindcss": "^4.1.14",
-    "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "@types/archiver": "^6.0.3",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.6",
+    "@types/react": "^19.0.4",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "esbuild": "^0.24.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
   }
 }
