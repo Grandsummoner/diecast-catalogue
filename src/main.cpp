@@ -5,7 +5,7 @@
 #include <algorithm> // Critical: Resolves std::sort and std::transform errors
 #include <ctime>
 #include <cstdlib>
-#include <filesystem>
+#include <filesystem> // Essential to resolve filesystem operations
 
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -66,6 +66,16 @@ int main() {
             if (g_GachaDuration >= 2.0f) {
                 g_GachaRolling = false; g_GachaInterval = 0.05f;
                 g_SelectedCarIndex = std::rand() % g_Catalog.size();
+            }
+        }
+
+        // Global Ctrl + Mouse Wheel Dynamic Zoom / Scaling handler
+        if (io.KeyCtrl) {
+            float wheel = io.MouseWheel;
+            if (wheel != 0.0f) {
+                io.FontGlobalScale += wheel * 0.05f;
+                if (io.FontGlobalScale < 0.8f) io.FontGlobalScale = 0.8f;
+                if (io.FontGlobalScale > 2.0f) io.FontGlobalScale = 2.0f;
             }
         }
 
@@ -219,6 +229,7 @@ int main() {
             if (ImGui::BeginTabItem("Showcase View")) {
                 if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
                     auto& car = g_Catalog[g_SelectedCarIndex];
+
                     ImGui::Text("ASK COLLECTOR BOT:"); ImGui::SameLine();
                     ImGui::InputText("##BotPrompt", g_ChatInput, IM_ARRAYSIZE(g_ChatInput)); ImGui::SameLine();
                     if (ImGui::Button("Ask")) {
@@ -280,7 +291,7 @@ int main() {
                 ImGui::EndTabItem();
             }
 
-            // MODE 2: TACTILE POLAROID SCATTER (Virtual Shoebox with Large Cards & Short Specs)
+            // MODE 2: TACTILE POLAROID SCATTER (Virtual Shoebox with Large Cards & Draggable Mouse Controls)
             if (ImGui::BeginTabItem("Polaroid Scatter")) {
                 ImGui::Text("Tabletop Desk - Drag and organize your collection scatter cards!");
                 
@@ -290,7 +301,7 @@ int main() {
                     for (int i = 0; i < (int)g_Catalog.size(); ++i) {
                         PolaroidCard pc; pc.carIndex = i;
                         pc.position = ImVec2(30.0f + (std::rand() % 200), 50.0f + (std::rand() % 120));
-                        pc.rotation = (float)(std::rand() % 30 - 15); pc.initialized = true;
+                        pc.initialized = true;
                         g_PolaroidCards.push_back(pc);
                     }
                 }
@@ -310,6 +321,31 @@ int main() {
                 dlist->AddRectFilled(scatterCursor, ImVec2(scatterCursor.x + middlePanelWidth - 30.0f, scatterCursor.y + bodyHeight - 120.0f), IM_COL32(10, 14, 20, 255));
 
                 ImGui::BeginChild("ScatterStage", ImVec2(0, bodyHeight - 120.0f), false, ImGuiWindowFlags_NoScrollbar);
+                
+                int hoveredIndex = -1;
+                for (size_t i = 0; i < g_PolaroidCards.size(); ++i) {
+                    auto& pc = g_PolaroidCards[i]; if (!pc.initialized) continue;
+                    ImVec2 cardMin = ImVec2(scatterCursor.x + pc.position.x, scatterCursor.y + pc.position.y);
+                    ImVec2 cardMax = ImVec2(cardMin.x + 165.0f, cardMin.y + 185.0f);
+                    if (ImGui::IsMouseHoveringRect(cardMin, cardMax)) {
+                        hoveredIndex = (int)i;
+                    }
+                }
+
+                // Global dragging offset hook checks to resolve "iffy" dragging
+                if (ImGui::IsMouseClicked(0) && hoveredIndex != -1) {
+                    g_DraggedPolaroidIndex = hoveredIndex;
+                }
+                if (ImGui::IsMouseReleased(0)) {
+                    g_DraggedPolaroidIndex = -1;
+                }
+                if (g_DraggedPolaroidIndex != -1 && ImGui::IsMouseDragging(0)) {
+                    ImVec2 delta = ImGui::GetIO().MouseDelta;
+                    auto& pc = g_PolaroidCards[g_DraggedPolaroidIndex];
+                    pc.position.x += delta.x / ImGui::GetIO().FontGlobalScale;
+                    pc.position.y += delta.y / ImGui::GetIO().FontGlobalScale;
+                }
+
                 for (size_t i = 0; i < g_PolaroidCards.size(); ++i) {
                     auto& pc = g_PolaroidCards[i]; if (!pc.initialized) continue;
                     ImGui::SetCursorPos(pc.position);
@@ -324,19 +360,12 @@ int main() {
                         ImGui::Text("    🚗    ");
                     }
                     
-                    // Display details under the photo
                     ImGui::Text("%d %s", g_Catalog[pc.carIndex].year, g_Catalog[pc.carIndex].make.c_str());
                     std::string shortModel = g_Catalog[pc.carIndex].model;
                     if (shortModel.length() > 14) shortModel = shortModel.substr(0, 12) + "..";
                     ImGui::TextDisabled("%s", shortModel.c_str());
                     ImGui::TextDisabled("Scale: %s", g_Catalog[pc.carIndex].scale.c_str());
 
-                    // Manual drag-offset calculations via window hover mouse inputs
-                    if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-                        ImVec2 delta = ImGui::GetIO().MouseDelta;
-                        pc.position.x += delta.x / ImGui::GetIO().FontGlobalScale;
-                        pc.position.y += delta.y / ImGui::GetIO().FontGlobalScale;
-                    }
                     ImGui::EndChild();
                     ImGui::PopID();
                 }
@@ -344,7 +373,7 @@ int main() {
                 ImGui::EndTabItem();
             }
 
-            // MODE 3: FACE-OFF CHALLENGE (Tinder-style draggable swipes)
+            // MODE 3: FACE-OFF CHALLENGE (Tinder-style dragging swipes)
             if (ImGui::BeginTabItem("Faceoff")) {
                 ImGui::Text("Tinder Face-off Arena! Drag/swipe either card horizontally to vote.");
                 if ((g_ShowdownLeftIndex == -1 || g_ShowdownRightIndex == -1) && g_Catalog.size() >= 2) {
@@ -356,7 +385,6 @@ int main() {
 
                 if (g_ShowdownActive && g_ShowdownLeftIndex != -1 && g_ShowdownRightIndex != -1) {
                     ImGui::Separator();
-                    
                     float halfCardWidth = (middlePanelWidth / 2.0f) - 20.0f;
 
                     // Tinder Left Card: Left-click and Drag horizontally to Swipe Away / Vote!
@@ -366,8 +394,23 @@ int main() {
                     ImGui::Text("%d %s", carL.year, carL.make.c_str()); ImGui::TextWrapped("%s", carL.model.c_str());
                     
                     GLuint texL = GetOrCreateTexture(carL.folderPath);
-                    if (texL != 0) ImGui::Image((void*)(intptr_t)texL, ImVec2(halfCardWidth - 20.0f, 100));
-                    else ImGui::Text("   🚗   ");
+                    if (texL != 0) {
+                        float canvasWidth = halfCardWidth - 20.0f;
+                        float canvasHeight = 100.0f;
+                        float imgAspect = (float)g_ActiveTextureWidth / (float)g_ActiveTextureHeight;
+                        float canvasAspect = canvasWidth / canvasHeight;
+                        ImVec2 displaySize;
+                        if (imgAspect > canvasAspect) {
+                            displaySize.x = canvasWidth;
+                            displaySize.y = canvasWidth / imgAspect;
+                        } else {
+                            displaySize.y = canvasHeight;
+                            displaySize.x = canvasHeight * imgAspect;
+                        }
+                        ImGui::Image((void*)(intptr_t)texL, displaySize);
+                    } else {
+                        ImGui::Text("   🚗   ");
+                    }
                     ImGui::Text("Wins: %d", carL.showdownWins);
 
                     // Track drag swipe offset
@@ -398,8 +441,23 @@ int main() {
                     ImGui::Text("%d %s", carR.year, carR.make.c_str()); ImGui::TextWrapped("%s", carR.model.c_str());
                     
                     GLuint texR = GetOrCreateTexture(carR.folderPath);
-                    if (texR != 0) ImGui::Image((void*)(intptr_t)texR, ImVec2(halfCardWidth - 20.0f, 100));
-                    else ImGui::Text("   🚗   ");
+                    if (texR != 0) {
+                        float canvasWidth = halfCardWidth - 20.0f;
+                        float canvasHeight = 100.0f;
+                        float imgAspect = (float)g_ActiveTextureWidth / (float)g_ActiveTextureHeight;
+                        float canvasAspect = canvasWidth / canvasHeight;
+                        ImVec2 displaySize;
+                        if (imgAspect > canvasAspect) {
+                            displaySize.x = canvasWidth;
+                            displaySize.y = canvasWidth / imgAspect;
+                        } else {
+                            displaySize.y = canvasHeight;
+                            displaySize.x = canvasHeight * imgAspect;
+                        }
+                        ImGui::Image((void*)(intptr_t)texR, displaySize);
+                    } else {
+                        ImGui::Text("   🚗   ");
+                    }
                     ImGui::Text("Wins: %d", carR.showdownWins);
 
                     // Track drag swipe offset
@@ -432,16 +490,31 @@ int main() {
         // PANEL 3: RIGHT PANEL — RICH TEXT & CHATBOT (30% Width)
         // -------------------------------------------------------------
         ImGui::BeginChild("RightPanel", ImVec2(0, bodyHeight), true);
-        if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
-            auto& car = g_Catalog[g_SelectedCarIndex];
-            if (ImGui::BeginTabBar("RightHistologyTabs")) {
-                if (ImGui::BeginTabItem("Real History")) {
-                    ImGui::TextWrapped("%s", car.realHistory.c_str()); ImGui::EndTabItem();
+        
+        // Tab system kept visible by default on startup
+        if (ImGui::BeginTabBar("RightHistologyTabs")) {
+            
+            if (ImGui::BeginTabItem("Real History")) {
+                if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
+                    ImGui::TextWrapped("%s", g_Catalog[g_SelectedCarIndex].realHistory.c_str());
+                } else {
+                    ImGui::TextWrapped("Select or upload a model to view real-world history descriptions sourced dynamically.");
                 }
-                if (ImGui::BeginTabItem("Factory Specs")) {
-                    ImGui::TextWrapped("%s", car.factorySpecs.c_str()); ImGui::EndTabItem();
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Factory Specs")) {
+                if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
+                    ImGui::TextWrapped("%s", g_Catalog[g_SelectedCarIndex].factorySpecs.c_str());
+                } else {
+                    ImGui::TextWrapped("Select or upload a model to view technical factory scale specifications.");
                 }
-                if (ImGui::BeginTabItem("Nuggets")) {
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Nuggets")) {
+                if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
+                    auto& car = g_Catalog[g_SelectedCarIndex];
                     ImGui::Text("REAL CAR COLLECTABILITY:");
                     ImGui::TextColored(ImVec4(0.30f, 0.48f, 1.00f, 1.00f), "Score: %.2f / 10.00", car.collectabilityScore);
                     ImU32 sunkenTrack = IM_COL32(210, 215, 224, 255); ImU32 pillFill = IM_COL32(77, 124, 255, 255);
@@ -456,43 +529,54 @@ int main() {
                         ImGui::BeginChild((std::string("TriviaBoxChild##") + std::to_string(n)).c_str(), ImVec2(0, 85), true);
                         ImGui::TextWrapped("%s", car.triviaNuggets[n].c_str()); ImGui::EndChild();
                     }
-                    ImGui::EndTabItem();
+                } else {
+                    ImGui::TextWrapped("Select or upload a model to generate collectability score progress bars and trivia nuggets.");
                 }
-                if (ImGui::BeginTabItem("Garage Profile")) {
-                    ImGui::Text("Sourced Personality Archetypes:");
-                    int jdmCount = 0; int muscleCount = 0;
-                    for (const auto& item : g_Catalog) {
-                        std::string m = item.make; std::transform(m.begin(), m.end(), m.begin(), ::tolower);
-                        if (m.find("nissan") != std::string::npos || m.find("toyota") != std::string::npos || m.find("mits") != std::string::npos) jdmCount++;
-                        else if (m.find("ford") != std::string::npos || m.find("chev") != std::string::npos || m.find("dodge") != std::string::npos) muscleCount++;
-                    }
-                    ImGui::BeginChild("BadgeBox", ImVec2(0, 80), true);
-                    if (jdmCount > muscleCount) {
-                        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "🏆 Archetype Badge: [ JDM Specialist ]");
-                        ImGui::TextWrapped("Your collection displays high fidelity affinity for Japanese domestic engineering and street-tuner design.");
-                    } else if (muscleCount > jdmCount) {
-                        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "🏆 Archetype Badge: [ Muscle Classicist ]");
-                        ImGui::TextWrapped("Your collection displays high fidelity affinity for standard American high-displacement V8 drag-strip pedigree.");
-                    } else {
-                        ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.4f, 1.0f), "🏆 Archetype Badge: [ Balanced Curator ]");
-                        ImGui::TextWrapped("Your collection displays highly versatile focus across multiple mechanical layouts and classes.");
-                    }
-                    ImGui::EndChild();
-                    ImGui::Separator(); ImGui::Text("Showdown Bracket Leaderboard (Top Wins):");
-                    std::vector<DiecastCar> sortedCatalog = g_Catalog;
-                    std::sort(sortedCatalog.begin(), sortedCatalog.end(), [](const DiecastCar& a, const DiecastCar& b) {
-                        return a.showdownWins > b.showdownWins;
-                    });
-                    for (size_t l = 0; l < (std::min)(sortedCatalog.size(), size_t(5)); ++l) {
-                        if (sortedCatalog[l].showdownWins > 0) {
-                            ImGui::Text("%zu. %s %s - %d Wins", l+1, sortedCatalog[l].make.c_str(), sortedCatalog[l].model.c_str(), sortedCatalog[l].showdownWins);
-                        }
-                    }
-                    ImGui::EndTabItem();
-                }
-                ImGui::EndTabBar();
+                ImGui::EndTabItem();
             }
-            ImGui::Separator(); ImGui::Text("Collector Chat Memory Log (💬):");
+
+            if (ImGui::BeginTabItem("Garage Profile")) {
+                ImGui::Text("Sourced Personality Archetypes:");
+                int jdmCount = 0; int muscleCount = 0;
+                for (const auto& item : g_Catalog) {
+                    std::string m = item.make; std::transform(m.begin(), m.end(), m.begin(), ::tolower);
+                    if (m.find("nissan") != std::string::npos || m.find("toyota") != std::string::npos || m.find("mits") != std::string::npos) jdmCount++;
+                    else if (m.find("ford") != std::string::npos || m.find("chev") != std::string::npos || m.find("dodge") != std::string::npos) muscleCount++;
+                }
+                ImGui::BeginChild("BadgeBox", ImVec2(0, 80), true);
+                if (g_Catalog.empty()) {
+                    ImGui::TextColored(ImVec4(0.4f, 0.5f, 0.6f, 1.0f), "🏆 Archetype Badge: [ Empty Showroom ]");
+                    ImGui::TextWrapped("Your collection profile is currently empty. Drop file folders to analyze your curator badge.");
+                } else if (jdmCount > muscleCount) {
+                    ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "🏆 Archetype Badge: [ JDM Specialist ]");
+                    ImGui::TextWrapped("Your collection displays high fidelity affinity for Japanese domestic engineering and street-tuner design.");
+                } else if (muscleCount > jdmCount) {
+                    ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "🏆 Archetype Badge: [ Muscle Classicist ]");
+                    ImGui::TextWrapped("Your collection displays high fidelity affinity for standard American high-displacement V8 drag-strip pedigree.");
+                } else {
+                    ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.4f, 1.0f), "🏆 Archetype Badge: [ Balanced Curator ]");
+                    ImGui::TextWrapped("Your collection displays highly versatile focus across multiple mechanical layouts and classes.");
+                }
+                ImGui::EndChild();
+                ImGui::Separator(); ImGui::Text("Showdown Bracket Leaderboard (Top Wins):");
+                std::vector<DiecastCar> sortedCatalog = g_Catalog;
+                std::sort(sortedCatalog.begin(), sortedCatalog.end(), [](const DiecastCar& a, const DiecastCar& b) {
+                    return a.showdownWins > b.showdownWins;
+                });
+                for (size_t l = 0; l < (std::min)(sortedCatalog.size(), size_t(5)); ++l) {
+                    if (sortedCatalog[l].showdownWins > 0) {
+                        ImGui::Text("%zu. %s %s - %d Wins", l+1, sortedCatalog[l].make.c_str(), sortedCatalog[l].model.c_str(), sortedCatalog[l].showdownWins);
+                    }
+                }
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
+        }
+
+        if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
+            auto& car = g_Catalog[g_SelectedCarIndex];
+            ImGui::Separator();
+            ImGui::Text("Collector Chat Memory Log (💬):");
             ImGui::BeginChild("QAChatLogs", ImVec2(0, 120), true);
             for (const auto& chat : g_ChatLog) {
                 ImGui::TextColored(chat.first == "You" ? ImVec4(0.3f, 0.8f, 0.3f, 1.0f) : ImVec4(0.0f, 0.6f, 0.9f, 1.0f), "%s: ", chat.first.c_str());
