@@ -10,6 +10,8 @@
 #include <filesystem>
 #include <random>
 #include <ctime>
+#include <windows.h>
+#include <winhttp.h>
 
 // Let GLFW automatically include standard GL and Win32 headers in correct order
 #include "GLFW/glfw3.h"
@@ -78,8 +80,9 @@ bool g_UnsavedChanges = false;
 enum Theme { THEME_NAVY, THEME_LIGHT, THEME_BEIGE };
 Theme g_ActiveTheme = THEME_NAVY;
 
-// Text search state
+// Text search and API key states
 char g_SearchInput[128] = "";
+char g_ApiKeyInput[128] = "";
 
 // Undo/Redo stack buffers (Restricted to 10 snapshots)
 std::vector<HistoryState> g_UndoStack;
@@ -114,6 +117,64 @@ bool g_ShowExitPrompt = false;
 char g_ChatInput[256] = "";
 char g_CuratorNotes[512] = "No curator remarks entered yet.";
 std::vector<std::pair<std::string, std::string>> g_ChatLog; // {User, Msg}
+int g_StarredCount = 0;
+
+// -------------------------------------------------------------
+// NATIVE WINHTTP SECURE HTTP CLIENT
+// -------------------------------------------------------------
+
+std::wstring toWString(const std::string& str) {
+    if (str.empty()) return L"";
+    int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+    std::wstring wstr(sizeNeeded, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstr[0], sizeNeeded);
+    return wstr;
+}
+
+std::string makeHttpsPostRequest(const std::string& host, const std::string& path, const std::string& payload) {
+    std::string response;
+    HINTERNET hSession = WinHttpOpen(L"DiecastCatalogue/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession) return "";
+
+    HINTERNET hConnect = WinHttpConnect(hSession, toWString(host).c_str(), INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (!hConnect) {
+        WinHttpCloseHandle(hSession);
+        return "";
+    }
+
+    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", toWString(path).c_str(), NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+    if (!hRequest) {
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        return "";
+    }
+
+    std::wstring headers = L"Content-Type: application/json\r\n";
+    BOOL bResults = WinHttpSendRequest(hRequest, headers.c_str(), (DWORD)-1L, (LPVOID)payload.c_str(), (DWORD)payload.size(), (DWORD)payload.size(), 0);
+
+    if (bResults) {
+        bResults = WinHttpReceiveResponse(hRequest, NULL);
+    }
+
+    if (bResults) {
+        DWORD dwSize = 0;
+        do {
+            DWORD dwDownloaded = 0;
+            if (!WinHttpQueryDataAvailable(hRequest, &dwSize)) break;
+            if (dwSize == 0) break;
+
+            std::vector<char> buffer(dwSize + 1, 0);
+            if (WinHttpReadData(hRequest, &buffer[0], dwSize, &dwDownloaded)) {
+                response.append(buffer.data(), dwDownloaded);
+            }
+        } while (dwSize > 0);
+    }
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+    return response;
+}
 
 // -------------------------------------------------------------
 // HISTORICAL SPECIFICATION & SCORE HEURISTICS
