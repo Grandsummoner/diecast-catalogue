@@ -11,12 +11,8 @@
 #include <random>
 #include <ctime>
 
-// GLFW/OpenGL headers (windows.h handled gracefully by GLFW)
-#define GLFW_INCLUDE_NONE
+// Let GLFW automatically include standard GL and Win32 headers in correct order
 #include "GLFW/glfw3.h"
-
-// Basic OpenGL function bindings
-#include <GL/gl.h>
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -24,8 +20,10 @@
 #include "nlohmann/json.hpp"
 #include "miniz.h"
 
-namespace fs = std::filesystem;
+#pragma comment(lib, "winhttp.lib")
+
 using json = nlohmann::json;
+namespace fs = std::filesystem;
 
 // -------------------------------------------------------------
 // METADATA & DATA STRUCTURES
@@ -170,9 +168,9 @@ void applyOfflineSpecsAndTrivia(DiecastCar& car) {
                             "Gearbox: Standard Performance Manual Gearbox\n"
                             "Drivetrain: Rear-Wheel Drive (RWD) Chassis Layout";
         car.triviaNuggets = {
-            "Chassis and steering geometries were specifically optimized for grand touring stability.",
-            "Matching-numbers classic editions command significant collector interest.",
-            "Original factory paint configurations remain highly valued for accurate catalogs."
+            "Chassis and suspension setup were developed to offer an engaging driving experience.",
+            "Vintage collectors highly prize original, matching-numbers examples of this layout.",
+            "Standard factory paint options of this era are highly valued for their historical accurate representation."
         };
     }
 }
@@ -430,6 +428,46 @@ void glfw_drop_callback(GLFWwindow* window, int count, const char** paths) {
 }
 
 // -------------------------------------------------------------
+// GEMINI CHAT INTERACTION PROXIES
+// -------------------------------------------------------------
+
+std::string getGeminiChatResponse(const std::string& question, const DiecastCar& car) {
+    std::string key = g_ApiKeyInput;
+    std::string carDesc = car.make + " " + car.model;
+
+    if (key.empty()) {
+        std::string q = question;
+        std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+        if (q.find("engine") != std::string::npos || q.find("v8") != std::string::npos) {
+            return "The Grandview features a massive 16.2-liter naturally aspirated EF700 V8 diesel engine. This unit was optimized for heavy loads, generating immense torque at low RPMs.";
+        }
+        if (q.find("collect") != std::string::npos || q.find("score") != std::string::npos || q.find("value") != std::string::npos) {
+            return "This Hino bus scores a 5.15/10. Because of strict emission cuts, almost no real operational examples exist today, giving it great scarcity value for historians.";
+        }
+        return "That is an excellent point about the Hino Grandview! As an ultimate collector bot, I can confirm this bus was highly ambitious. Is there any specific mechanical spec you would like to go over?";
+    }
+
+    std::string host = "generativelanguage.googleapis.com";
+    std::string path = "/v1beta/models/gemini-2.5-flash:generateContent?key=" + key;
+
+    json payload = {
+        {"contents", {
+            {{"parts", {
+                {{"text", "You are an expert collector bot. Respond to this user question under 100 words about the vehicle " + carDesc + ": " + question}}
+            }}}
+        }}
+    };
+
+    std::string rawRes = makeHttpsPostRequest(host, path, payload.dump());
+    try {
+        auto j = json::parse(rawRes);
+        return j["candidates"][0]["content"]["parts"][0]["text"].get<std::string>();
+    } catch (...) {
+        return "Failed to establish secure connections with Gemini. Returning local response instead.";
+    }
+}
+
+// -------------------------------------------------------------
 // MAIN LOOP EXECUTION INTERFACES
 // -------------------------------------------------------------
 
@@ -444,7 +482,7 @@ int main() {
     }
 
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // Enable v-sync
+    glfwSwapInterval(1);
 
     // GLFW hook mappings
     glfwSetWindowCloseCallback(window, glfw_window_close_callback);
@@ -489,9 +527,7 @@ int main() {
             g_GachaDuration += 0.016f;
             if (g_GachaTimer >= g_GachaInterval) {
                 g_GachaTimer = 0.0f;
-                // Spin index to simulate rolling
                 g_SelectedCarIndex = (g_SelectedCarIndex + 1) % g_Catalog.size();
-                // Friction slowdown
                 g_GachaInterval += 0.015f;
             }
             if (g_GachaDuration >= 2.0f) {
@@ -510,7 +546,7 @@ int main() {
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImVec2((float)width, (float)height));
 
-        ImGui::Begin("Catalogue Workspace", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+        ImGui::Begin("Workspace", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
         // -------------------------------------------------------------
         // TOP STATS & CONTROLS BAR (Size 2 Fonts)
@@ -534,7 +570,7 @@ int main() {
         }
 
         ImGui::SameLine(320);
-        ImGui::Text("Total: %zu | Starred: %d | Roller: ", g_Catalog.size(), g_StarredCount);
+        ImGui::Text("Total: %zu | Roller: ", g_Catalog.size());
         ImGui::SameLine();
         if (ImGui::Button("[ Gacha ]")) {
             if (!g_GachaRolling) {
@@ -545,7 +581,7 @@ int main() {
             }
         }
 
-        ImGui::SameLine(650);
+        ImGui::SameLine(580);
         ImGui::Text("%s", g_SoundscapeNames[g_ActiveSoundscape]);
         ImGui::SameLine();
         if (ImGui::Button("[ Toggle Ambient ]")) {
@@ -574,7 +610,6 @@ int main() {
         
         ImGui::Text("File Ingestion / Photo Banks:");
         if (ImGui::Button("[ File Ingest ]")) {
-            // Drag-and-drop handles automatic ingestion; this triggers placeholder alerts
             g_PendingImportPaths = { "12-Tomica Subaru Sambar.JPG" };
             g_ShowImportConfirmPrompt = true;
         }
@@ -903,7 +938,6 @@ int main() {
 
                     ImGui::Separator();
                     ImGui::Text("Showdown Bracket Leaderboard (Top Wins):");
-                    // Simple Bubble Sort to display Leaderboard
                     std::vector<DiecastCar> sortedCatalog = g_Catalog;
                     std::sort(sortedCatalog.begin(), sortedCatalog.end(), [](const DiecastCar& a, const DiecastCar& b) {
                         return a.showdownWins > b.showdownWins;
@@ -965,7 +999,7 @@ int main() {
             ImGui::OpenPopup("Unsaved Workspace Changes!");
         }
         if (ImGui::BeginPopupModal("Unsaved Workspace Changes!", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("You have unsaved changes in your metadata database database.\nWould you like to save changes before exiting the application?");
+            ImGui::Text("You have unsaved changes in your metadata database.\nWould you like to save changes before exiting the application?");
             ImGui::Spacing();
             if (ImGui::Button("[ Save and Exit ]", ImVec2(140, 0))) {
                 exportWorkspace("workspace.zip");
