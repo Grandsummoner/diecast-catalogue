@@ -1,1 +1,254 @@
-d
+#include "utils.hpp"
+#include <windows.h>
+#include <winhttp.h>
+#include <filesystem>
+#include <algorithm>
+#include <fstream>
+#include <sstream>
+#include "stb_image.h"
+#include "nlohmann/json.hpp"
+#include "miniz.h"
+
+// Define OpenGL 1.2 constant if missing from Win32 headers
+#ifndef GL_CLAMP_TO_EDGE
+#define GL_CLAMP_TO_EDGE 0x812F
+#endif
+
+// Global state variable instantiations
+std::vector<DiecastCar> g_Catalog;
+int g_SelectedCarIndex = -1;
+bool g_UnsavedChanges = false;
+Theme g_ActiveTheme = THEME_LIGHT;
+
+std::map<std::string, GLuint> g_TextureCache;
+int g_ActiveTextureWidth = 0;
+int g_ActiveTextureHeight = 0;
+GLuint g_ActiveTextureID = 0;
+std::string g_ActiveTexturePath = "";
+
+std::vector<HistoryState> g_UndoStack;
+std::vector<HistoryState> g_RedoStack;
+
+bool g_GachaRolling = false;
+float g_GachaTimer = 0.0f;
+float g_GachaInterval = 0.05f;
+float g_GachaDuration = 0.0f;
+
+std::vector<PolaroidCard> g_PolaroidCards;
+
+int g_ShowdownLeftIndex = -1;
+int g_ShowdownRightIndex = -1;
+bool g_ShowdownActive = false;
+
+int g_ActiveSoundscape = 0;
+const char* g_SoundscapeNames[] = { "Soundscape: Off", "Soundscape: Rain", "Soundscape: V8 Idle", "Soundscape: Jazz Cafe" };
+
+std::vector<std::string> g_PendingImportPaths;
+bool g_ShowImportConfirmPrompt = false;
+bool g_ShowExitPrompt = false;
+
+char g_ChatInput[256] = "";
+char g_CuratorNotes[512] = "No curator remarks entered yet.";
+std::vector<std::pair<std::string, std::string>> g_ChatLog;
+int g_StarredCount = 0;
+
+// UTF-8 to UTF-16 Wide-String Converter
+std::wstring toWString(const std::string& str) {
+    if (str.empty()) return L"";
+    int size = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+    std::wstring wstr(size, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstr[0], size);
+    return wstr;
+}
+
+// Windows Wide-Character Texture Loader utilizing stb_image
+GLuint GetOrCreateTexture(const std::string& path) {
+    if (path.empty()) return 0;
+    auto it = g_TextureCache.find(path);
+    if (it != g_TextureCache.end()) return it->second;
+    if (g_TextureCache.size() > 100) {
+        auto first = g_TextureCache.begin();
+        glDeleteTextures(1, &(first->second));
+        g_TextureCache.erase(first);
+    }
+    GLuint texID = 0;
+    int channels, w, h;
+    unsigned char* data = nullptr;
+    #ifdef _WIN32
+    std::wstring wpath = toWString(path);
+    FILE* f = _wfopen(wpath.c_str(), L"rb");
+    #else
+    FILE* f = fopen(path.c_str(), "rb");
+    #endif
+    if (f) { data = stbi_load_from_file(f, &w, &h, &channels, 4); fclose(f); }
+    if (data) {
+        glGenTextures(1, &texID);
+        glBindTexture(GL_TEXTURE_2D, texID);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        stbi_image_free(data);
+        if (g_SelectedCarIndex >= 0 && g_Catalog[g_SelectedCarIndex].folderPath == path) {
+            g_ActiveTextureWidth = w; g_ActiveTextureHeight = h; g_ActiveTextureID = texID;
+        }
+        g_TextureCache[path] = texID;
+        return texID;
+    }
+    return 0;
+}
+
+// WinHTTP POST Request wrapper
+std::string makeHttpsPostRequest(const std::string& host, const std::string& path, const std::string& payload) {
+    std::string response;
+    HINTERNET hSession = WinHttpOpen(L"DiecastCatalogue/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession) return "";
+    HINTERNET hConnect = WinHttpConnect(hSession, toWString(host).c_str(), INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (!hConnect) { WinHttpCloseHandle(hSession); return ""; }
+    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", toWString(path).c_str(), NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+    if (!hRequest) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return ""; }
+    std::wstring headers = L"Content-Type: application/json\r\n";
+    BOOL bResults = WinHttpSendRequest(hRequest, headers.c_str(), (DWORD)-1L, (LPVOID)payload.c_str(), (DWORD)payload.size(), (DWORD)payload.size(), 0);
+    if (bResults) bResults = WinHttpReceiveResponse(hRequest, NULL);
+    if (bResults) {
+        DWORD dwSize = 0;
+        do {
+            DWORD dwDownloaded = 0;
+            if (!WinHttpQueryDataAvailable(hRequest, &dwSize)) break;
+            if (dwSize == 0) break;
+            std::vector<char> buffer(dwSize + 1, 0);
+            if (WinHttpReadData(hRequest, &buffer[0], dwSize, &dwDownloaded)) response.append(buffer.data(), dwDownloaded);
+        } while (dwSize > 0);
+    }
+    WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
+    return response;
+}
+
+// Offline spec generators
+float calculateScore(const std::string& make, const std::string& model, int year) {
+    std::string seed = make + model + std::to_string(year);
+    size_t hashVal = std::hash<std::string>{}(seed);
+    return (std::max)(1.0f, (std::min)(10.0f, 4.0f + static_cast<float>(hashVal % 55) / 10.0f));
+}
+
+void applyOfflineSpecsAndTrivia(DiecastCar& car) {
+    car.collectabilityScore = calculateScore(car.make, car.model, car.year);
+    std::string modelLower = car.model;
+    std::transform(modelLower.begin(), modelLower.end(), modelLower.begin(), ::tolower);
+    if (modelLower.find("mustang") != std::string::npos || modelLower.find("ford") != std::string::npos) {
+        car.realHistory = "The Mustang, debuting in mid-1964, pioneered the American 'pony car' movement—sporty, long-hood coupes with accessible engines.";
+        car.factorySpecs = "Engine Layout: Naturally Aspirated V8 / Windsor 4.7L\nGearbox: 4-Speed Close-Ratio Manual\nDrivetrain: Front-Engine, Rear-Wheel Drive (FR)";
+        car.triviaNuggets = { "More than 22,000 orders were submitted on launch day.", "Named after the WWII P-51 fighter plane, not the horse." };
+    } else if (modelLower.find("911") != std::string::npos || modelLower.find("porsche") != std::string::npos) {
+        car.realHistory = "The Porsche 911 debuted in 1963 as a replacement for the 356. It holds legendary sportscar status with its signature fastback flyline.";
+        car.factorySpecs = "Engine Layout: Rear-Mounted Air-Cooled Flat-Six\nGearbox: 5-Speed Synchronized Manual\nDrivetrain: Rear-Engine, Rear-Wheel Drive (RR)";
+        car.triviaNuggets = { "Originally named the 901, but adjusted due to Peugeot naming rights.", "Over 70% of all 911s built are still road-worthy today." };
+    } else {
+        car.realHistory = "This model represents a celebrated iteration in manufacturing design. Characterized by its period-accurate styling and distinct presence, it remains highly regarded.";
+        car.factorySpecs = "Engine Layout: Naturally Aspirated Inline-6 / V-Configuration\nGearbox: Performance Manual Gearbox\nDrivetrain: Rear-Wheel Drive (RWD) Layout";
+        car.triviaNuggets = { "Chassis geometries were optimized for grand touring stability.", "Vintage collectors highly prize original, matching-numbers examples of this layout." };
+    }
+}
+
+void parseCarInfo(const std::string& filename, DiecastCar& outCar) {
+    outCar.filename = filename;
+    outCar.folderPath = "01-10/" + filename;
+    size_t lastDot = filename.find_last_of(".");
+    std::string clean = (lastDot == std::string::npos) ? filename : filename.substr(0, lastDot);
+    std::replace(clean.begin(), clean.end(), '_', ' ');
+    std::replace(clean.begin(), clean.end(), '-', ' ');
+    std::vector<std::string> parts;
+    std::stringstream ss(clean); std::string buf;
+    while (ss >> buf) parts.push_back(buf);
+    if (parts.size() >= 3) {
+        outCar.year = 1990; outCar.make = parts[0]; outCar.make[0] = std::toupper(outCar.make[0]);
+        std::string compiledModel = "";
+        for (size_t i = 1; i < parts.size(); ++i) {
+            std::string segment = parts[i]; segment[0] = std::toupper(segment[0]);
+            if (i > 1) compiledModel += " ";
+            compiledModel += segment;
+        }
+        outCar.model = compiledModel;
+    } else {
+        outCar.year = 1990; outCar.make = "Generic"; outCar.model = clean;
+    }
+    outCar.color = "Paint"; outCar.displayName = clean;
+}
+
+// Undo/Redo operations
+void PushHistoryState() {
+    HistoryState state; state.catalog = g_Catalog; state.selectedCarIndex = g_SelectedCarIndex;
+    g_UndoStack.push_back(state);
+    if (g_UndoStack.size() > 10) g_UndoStack.erase(g_UndoStack.begin());
+    g_RedoStack.clear();
+}
+
+void ExecuteUndo() {
+    if (g_UndoStack.empty()) return;
+    HistoryState current; current.catalog = g_Catalog; current.selectedCarIndex = g_SelectedCarIndex;
+    g_RedoStack.push_back(current);
+    HistoryState prev = g_UndoStack.back(); g_UndoStack.pop_back();
+    g_Catalog = prev.catalog; g_SelectedCarIndex = prev.selectedCarIndex;
+    g_UnsavedChanges = true;
+}
+
+void ExecuteRedo() {
+    if (g_RedoStack.empty()) return;
+    HistoryState current; current.catalog = g_Catalog; current.selectedCarIndex = g_SelectedCarIndex;
+    g_UndoStack.push_back(current);
+    HistoryState next = g_RedoStack.back(); g_RedoStack.pop_back();
+    g_Catalog = next.catalog; g_SelectedCarIndex = next.selectedCarIndex;
+    g_UnsavedChanges = true;
+}
+
+// Zip exporter utilizing miniz
+bool exportWorkspace(const std::string& zipPath) {
+    mz_zip_archive zip; memset(&zip, 0, sizeof(zip));
+    if (!mz_zip_writer_init_file(&zip, zipPath.c_str(), 0)) return false;
+    json catalogJson = json::array();
+    for (const auto& car : g_Catalog) {
+        json item = {
+            {"filename", car.filename}, {"folderPath", car.folderPath}, {"year", car.year},
+            {"make", car.make}, {"model", car.model}, {"scale", car.scale}, {"condition", car.condition},
+            {"favorite", car.favorite}, {"score", car.collectabilityScore}, {"wins", car.showdownWins}, {"battles", car.showdownBattles}
+        };
+        catalogJson.push_back(item);
+    }
+    std::string s = catalogJson.dump(2);
+    mz_zip_writer_add_mem(&zip, "catalog.json", s.c_str(), s.size(), MZ_DEFAULT_COMPRESSION);
+    std::string readme = "My Collection - Standalone C++ Workspace Database\n";
+    mz_zip_writer_add_mem(&zip, "README.txt", readme.c_str(), readme.size(), MZ_DEFAULT_COMPRESSION);
+    mz_zip_writer_finalize_archive(&zip); mz_zip_writer_end(&zip);
+    g_UnsavedChanges = false;
+    return true;
+}
+
+// Directory drop scanners
+void scanAndQueuePath(const std::string& path) {
+    try {
+        if (fs::is_directory(path)) {
+            for (const auto& entry : fs::directory_iterator(path)) {
+                if (entry.is_regular_file()) {
+                    std::string ext = entry.path().extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext == ".jpg" || ext == ".png" || ext == ".jpeg" || ext == ".webp") g_PendingImportPaths.push_back(entry.path().string());
+                }
+            }
+        } else if (fs::is_regular_file(path)) {
+            std::string ext = fs::path(path).extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+            if (ext == ".jpg" || ext == ".png" || ext == ".jpeg" || ext == ".webp") g_PendingImportPaths.push_back(path);
+        }
+    } catch (...) {}
+}
+
+void finalizePendingImports() {
+    PushHistoryState();
+    for (const auto& path : g_PendingImportPaths) {
+        DiecastCar car; std::string filename = fs::path(path).filename().string();
+        parseCarInfo(filename, car); car.folderPath = path;
+        applyOfflineSpecsAndTrivia(car); g_Catalog.push_back(car);
+    }
+    g_PendingImportPaths.clear(); g_SelectedCarIndex = (int)g_Catalog.size() - 1; g_UnsavedChanges = true;
+}
