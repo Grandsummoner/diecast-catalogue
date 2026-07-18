@@ -12,6 +12,9 @@
 
 namespace fs = std::filesystem;
 
+// External linkage fallback safeguards
+extern int g_DraggedPolaroidIndex;
+
 // Global swipe offsets for Tinder-style Faceoff animations
 float g_LeftCardSwipeOffset = 0.0f;
 float g_RightCardSwipeOffset = 0.0f;
@@ -36,7 +39,7 @@ int main() {
     // System Font Loader: Use Comic Sans MS throughout the visual elements
     std::string fontPath = "C:\\Windows\\Fonts\\comic.ttf";
     if (fs::exists(fontPath)) {
-        io.Fonts->AddFontFromFileTTF(fontPath.c_str(), 15.0f);
+        io.Fonts->AddFontFromFileTTF(fontPath.c_str(), 16.0f);
     } else {
         io.Fonts->AddFontDefault();
     }
@@ -229,7 +232,6 @@ int main() {
             if (ImGui::BeginTabItem("Showcase View")) {
                 if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
                     auto& car = g_Catalog[g_SelectedCarIndex];
-
                     ImGui::Text("ASK COLLECTOR BOT:"); ImGui::SameLine();
                     ImGui::InputText("##BotPrompt", g_ChatInput, IM_ARRAYSIZE(g_ChatInput)); ImGui::SameLine();
                     if (ImGui::Button("Ask")) {
@@ -301,7 +303,7 @@ int main() {
                     for (int i = 0; i < (int)g_Catalog.size(); ++i) {
                         PolaroidCard pc; pc.carIndex = i;
                         pc.position = ImVec2(30.0f + (std::rand() % 200), 50.0f + (std::rand() % 120));
-                        pc.initialized = true;
+                        pc.rotation = (float)(std::rand() % 30 - 15); pc.initialized = true;
                         g_PolaroidCards.push_back(pc);
                     }
                 }
