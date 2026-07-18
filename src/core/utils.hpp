@@ -14,8 +14,8 @@ GLuint GetOrCreateTexture(const std::string& path);
 // String helpers
 std::wstring toWString(const std::string& str);
 
-// WinHTTP Client wrapper
-std::string makeHttpsPostRequest(const std::string& host, const std::string& path, const std::string& payload);
+// Versatile WinHTTP Client wrapper (Supports both GET and POST)
+std::string makeHttpsRequest(const std::string& verb, const std::string& host, const std::string& path, const std::string& payload);
 
 // Gemini Chatbot proxies
 std::string getGeminiChatResponse(const std::string& question, const DiecastCar& car);
