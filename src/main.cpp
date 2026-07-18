@@ -10,7 +10,7 @@
 #include "imgui_impl_opengl3.h"
 
 // -------------------------------------------------------------
-// MAIN RENDER LOOP & WINDOW callbacks
+// MAIN RENDER LOOP & WINDOW CALLBACKS
 // -------------------------------------------------------------
 
 int main() {
@@ -33,7 +33,7 @@ int main() {
     ImGui::CreateContext();
     ApplyTheme(g_ActiveTheme);
 
-    // High-readability font scale modifier
+    // High-readability font scale modifier (Upsized typography)
     ImGui::GetIO().FontGlobalScale = 1.30f;
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -343,7 +343,9 @@ int main() {
 
         ImGui::SameLine();
 
-        // Panel 3: Right (30%)
+        // -------------------------------------------------------------
+        // PANEL 3: RIGHT PANEL — RICH TEXT & CHATBOT (30% Width)
+        // -------------------------------------------------------------
         ImGui::BeginChild("RightPanel", ImVec2(0, bodyHeight), true);
         if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
             auto& car = g_Catalog[g_SelectedCarIndex];
