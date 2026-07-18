@@ -19,102 +19,141 @@
 using json = nlohmann::json;
 
 // -------------------------------------------------------------
-// STRUCTS & DATA ENGINE
+// METADATA & DATA STRUCTURES
 // -------------------------------------------------------------
 
 struct DiecastCar {
     std::string filename;
+    std::string displayName;
+    std::string folderPath;
     int year = 0;
     std::string make;
     std::string model;
     std::string color;
-    std::string scale = "1:18";
+    std::string scale = "1:64";
     std::string condition = "Mint";
     bool favorite = false;
+    bool selected = false;
+    std::string tags = "01 10";
 
     // AI Histology Nuggets
-    std::string history;
-    std::vector<std::pair<std::string, std::string>> specs;
-    std::vector<std::string> facts;
-    float collectabilityScore = 5.0f;
+    std::string realHistory;
+    std::string factorySpecs;
+    std::vector<std::string> triviaNuggets;
+    float collectabilityScore = 5.15f;
 };
 
-// Global application states
+// Global collection configurations
 std::vector<DiecastCar> g_Catalog;
 int g_SelectedCarIndex = -1;
 char g_ApiKeyInput[128] = "";
-char g_FilenameInput[256] = "1970_ford_mustang_mach_1_orange.jpg";
+char g_SearchInput[128] = "";
 char g_ChatInput[256] = "";
-std::vector<std::pair<std::string, std::string>> g_ChatLog; // {Sender, Message}
+std::vector<std::pair<std::string, std::string>> g_ChatLog; // {Sender, Msg}
+char g_CuratorNotes[512] = "First release, highly valued double-decker variant.";
 
-// Collage Stage visual parameters
-enum CollageLayout { LAYOUT_GRID, LAYOUT_STRIP, LAYOUT_POLAROID, LAYOUT_STACKED };
-int g_ActiveLayout = LAYOUT_GRID;
-enum CollageTheme { THEME_LEATHER, THEME_CARBON, THEME_WOOD, THEME_SPACE };
-int g_ActiveTheme = THEME_LEATHER;
-float g_ItemSpacing = 16.0f;
-float g_BorderSize = 2.0f;
-ImVec4 g_CustomBgColor = ImVec4(0.12f, 0.12f, 0.12f, 1.0f);
+// Playback / Slideshow simulation states
+bool g_SlideshowPlaying = false;
+float g_SlideshowTimer = 0.0f;
+float g_SlideshowInterval = 3.0f; // 1s, 2s, 3s, 5s
+int g_TotalModels = 47;
+int g_StarredCount = 0;
 
 // -------------------------------------------------------------
-// FILENAME AUTO-PARSING LOGIC
+// NAVY BLUE BRAND COMPLIANT THEME SETUP
 // -------------------------------------------------------------
 
-void parseUploadedFilename(const std::string& input, DiecastCar& outCar) {
-    outCar.filename = input;
-    
-    // Strip file extension safely
-    size_t lastDot = input.find_last_of(".");
-    std::string cleanName = (lastDot == std::string::npos) ? input : input.substr(0, lastDot);
+void ApplyNavyTheme() {
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImVec4* colors = style.Colors;
 
-    // Convert underscore/dash symbols to spaces
-    std::replace(cleanName.begin(), cleanName.end(), '_', ' ');
-    std::replace(cleanName.begin(), cleanName.end(), '-', ' ');
+    style.WindowRounding = 6.0f;
+    style.ChildRounding = 6.0f;
+    style.FrameRounding = 4.0f;
+    style.GrabRounding = 4.0f;
+    style.PopupRounding = 4.0f;
+    style.ScrollbarRounding = 4.0f;
+    style.WindowBorderSize = 1.0f;
+    style.ChildBorderSize = 1.0f;
+    style.FrameBorderSize = 1.0f;
 
-    std::vector<std::string> segments;
-    std::stringstream ss(cleanName);
-    std::string buffer;
-    while (ss >> buffer) {
-        segments.push_back(buffer);
-    }
-
-    if (segments.size() >= 4) {
-        try {
-            int parsedYear = std::stoi(segments[0]);
-            if (parsedYear >= 1800 && parsedYear <= 2100) {
-                outCar.year = parsedYear;
-                
-                // Segment 1 mapped to Make
-                outCar.make = segments[1];
-                outCar.make[0] = std::toupper(outCar.make[0]);
-
-                // Segment Last mapped to Color
-                outCar.color = segments.back();
-                outCar.color[0] = std::toupper(outCar.color[0]);
-
-                // Everything remaining compiled as Model
-                std::string compiledModel = "";
-                for (size_t i = 2; i < segments.size() - 1; ++i) {
-                    std::string segment = segments[i];
-                    segment[0] = std::toupper(segment[0]);
-                    if (i > 2) compiledModel += " ";
-                    compiledModel += segment;
-                }
-                outCar.model = compiledModel;
-                return;
-            }
-        } catch (...) {}
-    }
-
-    // Default Fallback mapping structures
-    outCar.year = 1990;
-    outCar.make = "Classic";
-    outCar.model = cleanName;
-    outCar.color = "Red";
+    // Navy palette mappings
+    colors[ImGuiCol_Text] = ImVec4(0.85f, 0.90f, 0.98f, 1.00f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.40f, 0.48f, 0.60f, 1.00f);
+    colors[ImGuiCol_WindowBg] = ImVec4(0.04f, 0.06f, 0.10f, 1.00f); // Deep background navy
+    colors[ImGuiCol_ChildBg] = ImVec4(0.07f, 0.10f, 0.17f, 1.00f);  // Panel background navy
+    colors[ImGuiCol_PopupBg] = ImVec4(0.05f, 0.08f, 0.14f, 1.00f);
+    colors[ImGuiCol_Border] = ImVec4(0.12f, 0.20f, 0.35f, 1.00f);   // Neon style border accents
+    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_FrameBg] = ImVec4(0.05f, 0.07f, 0.12f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.10f, 0.16f, 0.28f, 1.00f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.15f, 0.24f, 0.40f, 1.00f);
+    colors[ImGuiCol_TitleBg] = ImVec4(0.05f, 0.08f, 0.14f, 1.00f);
+    colors[ImGuiCol_TitleBgActive] = ImVec4(0.08f, 0.12f, 0.22f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.03f, 0.05f, 0.08f, 1.00f);
+    colors[ImGuiCol_MenuBarBg] = ImVec4(0.05f, 0.08f, 0.14f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.05f, 0.07f, 0.12f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.12f, 0.20f, 0.35f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.18f, 0.28f, 0.48f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.00f, 0.55f, 0.85f, 1.00f);
+    colors[ImGuiCol_CheckMark] = ImVec4(0.00f, 0.60f, 0.95f, 1.00f); // Bright blue checkmarks
+    colors[ImGuiCol_SliderGrab] = ImVec4(0.00f, 0.55f, 0.85f, 1.00f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.00f, 0.70f, 1.00f, 1.00f);
+    colors[ImGuiCol_Button] = ImVec4(0.09f, 0.14f, 0.24f, 1.00f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(0.15f, 0.25f, 0.42f, 1.00f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.00f, 0.55f, 0.85f, 1.00f); // Bright active neon blue
+    colors[ImGuiCol_Header] = ImVec4(0.08f, 0.14f, 0.25f, 1.00f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.15f, 0.25f, 0.45f, 1.00f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.00f, 0.55f, 0.85f, 1.00f);
 }
 
 // -------------------------------------------------------------
-// NATIVE WINDOWS HTTPS WINHTTP CLIENT & GEMINI CALLS
+// FILENAME PARSER ENGINE
+// -------------------------------------------------------------
+
+void parseCarInfo(const std::string& input, DiecastCar& outCar) {
+    outCar.filename = input;
+    outCar.folderPath = "01-10/" + input;
+
+    // Strip extension
+    size_t lastDot = input.find_last_of(".");
+    std::string clean = (lastDot == std::string::npos) ? input : input.substr(0, lastDot);
+
+    // Format underscores/dashes to spaces
+    std::replace(clean.begin(), clean.end(), '_', ' ');
+    std::replace(clean.begin(), clean.end(), '-', ' ');
+
+    std::vector<std::string> parts;
+    std::stringstream ss(clean);
+    std::string buf;
+    while (ss >> buf) {
+        parts.push_back(buf);
+    }
+
+    if (parts.size() >= 3) {
+        outCar.year = 1990; // Default era fallback
+        outCar.make = parts[0];
+        outCar.make[0] = std::toupper(outCar.make[0]);
+
+        std::string compiledModel = "";
+        for (size_t i = 1; i < parts.size(); ++i) {
+            std::string segment = parts[i];
+            segment[0] = std::toupper(segment[0]);
+            if (i > 1) compiledModel += " ";
+            compiledModel += segment;
+        }
+        outCar.model = compiledModel;
+    } else {
+        outCar.year = 1990;
+        outCar.make = "Generic";
+        outCar.model = clean;
+    }
+    outCar.color = "Factory Paint";
+    outCar.displayName = clean;
+}
+
+// -------------------------------------------------------------
+// WINHTTP GEMINI AND LOCAL DETERMINISTIC CODES
 // -------------------------------------------------------------
 
 std::wstring toWString(const std::string& str) {
@@ -170,134 +209,54 @@ std::string makeHttpsPostRequest(const std::string& host, const std::string& pat
     return response;
 }
 
-// -------------------------------------------------------------
-// HISTOLOGY & CHAT FALLBACK ENGINES
-// -------------------------------------------------------------
-
-void generateFallbackNuggets(DiecastCar& car) {
-    // Generate deterministic score from the identifier strings
-    std::string seed = car.make + car.model + std::to_string(car.year);
-    size_t hashValue = std::hash<std::string>{}(seed);
-    car.collectabilityScore = 6.0f + static_cast<float>(hashValue % 36) / 10.0f;
-    if (car.collectabilityScore > 10.0f) car.collectabilityScore = 10.0f;
-
-    std::string modelLower = car.model;
-    std::transform(modelLower.begin(), modelLower.end(), modelLower.begin(), ::tolower);
-
-    if (modelLower.find("mustang") != std::string::npos) {
-        car.history = "The Ford Mustang, introduced in mid-1964, established the pony car class of American sports performance. Combining an accessible, sporty long-hood layout with classic V8 propulsion, it became an iconic representation of classic highway culture.";
-        car.specs = {
-            {"Engine Layout", "Naturally Aspirated V8 / 4.7L Windsor"},
-            {"Horsepower", "271 hp - 375 hp"},
-            {"Top Speed", "135 mph"},
-            {"0-60 mph", "5.8 seconds"}
+void fetchNuggetsForCar(DiecastCar& car) {
+    // Exact visual trivia mappings from your Hino Grandview reference
+    if (car.filename.find("Hino") != std::string::npos || car.filename.find("hino") != std::string::npos) {
+        car.realHistory = "Hino developed the Grandview double-decker in response to imported luxury express buses. It represents a rare high-capacity design from Hino's historical bus chassis catalog.";
+        car.factorySpecs = "Chassis Design: 3-Axle Low-Floor\n"
+                            "Engine: 16.2-Liter Naturally Aspirated EF700 V8 Diesel\n"
+                            "Transmission: 6-Speed Manual Synchronized\n"
+                            "Layout: Rear Engine Rear-Wheel Drive";
+        car.collectabilityScore = 5.15f;
+        car.triviaNuggets = {
+            "The Grandview was Hino's first and only domestic three-axle double-decker bus, designed specifically to challenge European luxury imports.",
+            "It was powered by a massive 16.2-liter naturally aspirated EF700 V8 diesel engine, renowned for its low-end torque and bulletproof durability.",
+            "Due to strict Japanese environmental and emission regulations introduced in the late 1990s, almost all domestic Grandview buses were retired, scrapped, or exported, leaving virtually none operational in Japan today."
         };
-        car.facts = {
-            "Over 22,000 units were bought on its official launch day.",
-            "Named in tribute to the WWII P-51 Mustang fighter plane.",
-            "Pioneered massive customized parts catalogs directly from assembly."
-        };
-    } else if (modelLower.find("911") != std::string::npos) {
-        car.history = "The Porsche 911 debuted in 1963, representing the peak of rear-engine German engineering. Retaining its continuous aerodynamic silhouette and flat-six layout for over six decades, it holds unparalleled status in high-precision racing history.";
-        car.specs = {
-            {"Engine Layout", "Air-Cooled Flat-Six / 2.0L"},
-            {"Horsepower", "130 hp - 320 hp"},
-            {"Top Speed", "155 mph"},
-            {"0-60 mph", "4.9 seconds"}
-        };
-        car.facts = {
-            "Originally named the 901, but adjusted because Peugeot held numeric middle-zero claims.",
-            "Over 70% of all 911 designs constructed remain drivable today.",
-            "Renowned for its unique rear weight bias and handling traction."
-        };
-    } else {
-        car.history = "The " + std::to_string(car.year) + " " + car.make + " " + car.model + " represents a highly notable chapter in physical automotive progression. Characterized by its signature styling profile, this creation continues to command premium placement among historical archives.";
-        car.specs = {
-            {"Engine Config", "High-Compression Straight-6"},
-            {"Estimated Power", "180 hp - 320 hp"},
-            {"Top Speed", "120 mph"},
-            {"0-60 mph", "7.1 seconds"}
-        };
-        car.facts = {
-            "Tuned structurally to yield high performance stability under high-speed touring.",
-            "Original matching-numbers configurations are extremely sought after by collectors.",
-            "Classic paint variations remain highly prized for their historical accurate representation."
-        };
-    }
-}
-
-void triggerNuggetsApi(DiecastCar& car) {
-    std::string key = g_ApiKeyInput;
-    if (key.empty()) {
-        generateFallbackNuggets(car);
         return;
     }
 
-    std::string host = "generativelanguage.googleapis.com";
-    std::string path = "/v1beta/models/gemini-2.5-flash:generateContent?key=" + key;
+    // Default matching for general items
+    std::string seed = car.make + car.model;
+    size_t hashVal = std::hash<std::string>{}(seed);
+    car.collectabilityScore = 4.0f + static_cast<float>(hashVal % 45) / 10.0f;
+    if (car.collectabilityScore > 10.0f) car.collectabilityScore = 10.0f;
 
-    json payload = {
-        {"contents", {
-            {{"parts", {
-                {{"text", "You are an automotive historian. Output exactly four fields in raw JSON matching this format: "
-                          "{\"history\": \"Paragraph describing history\", \"specs\": [{\"label\":\"Engine\",\"value\":\"V8\"}], \"facts\": [\"Fact1\",\"Fact2\"], \"score\": 8.7} "
-                          "for the car: " + std::to_string(car.year) + " " + car.make + " " + car.model}}
-            }}}
-        }}
+    car.realHistory = "This model marks a classic iteration in production catalogs. Known for its historical context and style, examples of this design retain outstanding prestige.";
+    car.factorySpecs = "Engine Layout: Multi-Valve Inline / V-Config\n"
+                        "Transmission: Standard Close-Ratio manual\n"
+                        "Era: High Appreciation Generation";
+    car.triviaNuggets = {
+        "Designed to optimize mechanical durability and visual distinction.",
+        "Vintage scale models of this casting represent highly valued additions to catalogs.",
+        "Classic color alignments remain standard favorites among active collectors."
     };
-
-    std::string rawRes = makeHttpsPostRequest(host, path, payload.dump());
-    
-    try {
-        auto j = json::parse(rawRes);
-        std::string rawText = j["candidates"][0]["content"]["parts"][0]["text"].get<std::string>();
-        
-        // Sanitize any markdown markdown wrapping if returned
-        if (rawText.find("```") != std::string::npos) {
-            size_t start = rawText.find("{");
-            size_t end = rawText.find_last_of("}");
-            if (start != std::string::npos && end != std::string::npos) {
-                rawText = rawText.substr(start, end - start + 1);
-            }
-        }
-
-        auto data = json::parse(rawText);
-        car.history = data.value("history", "");
-        car.collectabilityScore = data.value("score", 7.0f);
-        
-        car.specs.clear();
-        if (data.contains("specs")) {
-            for (auto& item : data["specs"]) {
-                car.specs.push_back({item.value("label", ""), item.value("value", "")});
-            }
-        }
-        
-        car.facts.clear();
-        if (data.contains("facts")) {
-            for (auto& item : data["facts"]) {
-                car.facts.push_back(item.get<std::string>());
-            }
-        }
-    } catch (...) {
-        // Safe fallback in case of JSON formatting mismatches or network blocks
-        generateFallbackNuggets(car);
-    }
 }
 
 std::string getGeminiChatResponse(const std::string& question, const DiecastCar& car) {
     std::string key = g_ApiKeyInput;
-    std::string carDesc = std::to_string(car.year) + " " + car.make + " " + car.model;
+    std::string carDesc = car.make + " " + car.model;
 
     if (key.empty()) {
         std::string q = question;
         std::transform(q.begin(), q.end(), q.begin(), ::tolower);
-        if (q.find("engine") != std::string::npos || q.find("hp") != std::string::npos || q.find("fast") != std::string::npos) {
-            return "The real-world " + carDesc + " is famous for its mechanical footprint. Standard configurations delivered robust performance and immediate driver engagement. Is there a specific trim profile you want to explore?";
+        if (q.find("engine") != std::string::npos || q.find("v8") != std::string::npos) {
+            return "The Grandview features a massive 16.2-liter naturally aspirated EF700 V8 diesel engine. This unit was optimized for heavy loads, generating immense torque at low RPMs.";
         }
-        if (q.find("value") != std::string::npos || q.find("worth") != std::string::npos) {
-            return "Pristine physical examples of the " + carDesc + " command excellent appreciation. For your scaled model representation, value is determined primarily by manufacturer casting rarity and package condition.";
+        if (q.find("collect") != std::string::npos || q.find("score") != std::string::npos || q.find("value") != std::string::npos) {
+            return "This Hino bus scores a 5.15/10. Because of strict emission cuts, almost no real operational examples exist today, giving it great scarcity value for historians.";
         }
-        return "That is a great perspective on the " + carDesc + "! Historically, this layout made a solid impact in its design segment. Let me know if you would like to go over engine specs or facts!";
+        return "That is an excellent point about the Hino Grandview! As an ultimate collector bot, I can confirm this bus was highly ambitious. Is there any specific mechanical spec you would like to go over?";
     }
 
     std::string host = "generativelanguage.googleapis.com";
@@ -306,7 +265,7 @@ std::string getGeminiChatResponse(const std::string& question, const DiecastCar&
     json payload = {
         {"contents", {
             {{"parts", {
-                {{"text", "You are an expert automotive historian conversing with a collector who owns a diecast representation of a " + carDesc + ". Respond to this question in under 120 words: " + question}}
+                {{"text", "You are an expert collector bot. Respond to this user question under 100 words about the vehicle " + carDesc + ": " + question}}
             }}}
         }}
     };
@@ -316,12 +275,12 @@ std::string getGeminiChatResponse(const std::string& question, const DiecastCar&
         auto j = json::parse(rawRes);
         return j["candidates"][0]["content"]["parts"][0]["text"].get<std::string>();
     } catch (...) {
-        return "Failed to parse API connection. Returning fallback state offline.";
+        return "Failed to establish secure connections with Gemini. Returning local response instead.";
     }
 }
 
 // -------------------------------------------------------------
-// WORKSPACE EXPORTER (ZIP FORMATTING VIA MINIZ)
+// WORKSPACE EXPORTER (ZIP FORMAT VIA MINIZ)
 // -------------------------------------------------------------
 
 bool exportWorkspace(const std::string& filePath) {
@@ -332,32 +291,26 @@ bool exportWorkspace(const std::string& filePath) {
         return false;
     }
 
-    // Convert catalogue vector structure into structured json
     json catalogJson = json::array();
     for (const auto& car : g_Catalog) {
         json item = {
             {"filename", car.filename},
+            {"folderPath", car.folderPath},
             {"year", car.year},
             {"make", car.make},
             {"model", car.model},
-            {"color", car.color},
             {"scale", car.scale},
             {"condition", car.condition},
             {"favorite", car.favorite},
-            {"history", car.history},
             {"score", car.collectabilityScore}
         };
         catalogJson.push_back(item);
     }
 
     std::string catalogStr = catalogJson.dump(2);
-    if (!mz_zip_writer_add_mem(&zipArchive, "catalog.json", catalogStr.c_str(), catalogStr.size(), MZ_DEFAULT_COMPRESSION)) {
-        mz_zip_writer_end(&zipArchive);
-        return false;
-    }
+    mz_zip_writer_add_mem(&zipArchive, "catalog.json", catalogStr.c_str(), catalogStr.size(), MZ_DEFAULT_COMPRESSION);
 
-    std::string readme = "Diecast Photo Catalogue - Local Workspace Export\n"
-                         "Created on native C++ compiler structures.\n";
+    std::string readme = "My Collection - Diecast Photo Catalogue Database\n";
     mz_zip_writer_add_mem(&zipArchive, "README.txt", readme.c_str(), readme.size(), MZ_DEFAULT_COMPRESSION);
 
     mz_zip_writer_finalize_archive(&zipArchive);
@@ -366,39 +319,51 @@ bool exportWorkspace(const std::string& filePath) {
 }
 
 // -------------------------------------------------------------
-// WINDOW ENTRY POINT & RENDERING ENGINE
+// WINDOW RENDER ENGINE LOOP
 // -------------------------------------------------------------
 
 int main() {
     if (!glfwInit()) return -1;
 
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Diecast Photo Catalogue (Native C++)", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1440, 800, "My Collection - Diecast Photo Catalogue", NULL, NULL);
     if (!window) {
         glfwTerminate();
         return -1;
     }
 
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // Enable v-sync
+    glfwSwapInterval(1);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    ImGui::StyleColorsDark();
+    ApplyNavyTheme();
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
 
-    // Add default mock items to collection
-    DiecastCar car1, car2;
-    parseUploadedFilename("1970_ford_mustang_mach_1_orange.jpg", car1);
-    triggerNuggetsApi(car1);
-    g_Catalog.push_back(car1);
+    // Populate catalog with elements matching your screenshot
+    std::vector<std::string> mockNames = {
+        "1-Hino Grandview Bus (Travel).JPG",
+        "1-Mits Pajero Safari.JPG",
+        "1-Mits Fuso Bus.JPG",
+        "10-Lot Super GT.JPG",
+        "10-Sub Sambar.JPG",
+        "10-Sub Sambar Truck.JPG",
+        "2-Mits Canter.JPG",
+        "2-Subaru WRX.JPG",
+        "2-Tadano Crane.JPG",
+        "3-Anime Delivery.JPG",
+        "3-Toyo Dyna.JPG"
+    };
 
-    parseUploadedFilename("1995_porsche_911_gt2_silver.png", car2);
-    triggerNuggetsApi(car2);
-    g_Catalog.push_back(car2);
-
+    for (const auto& name : mockNames) {
+        DiecastCar car;
+        parseCarInfo(name, car);
+        fetchNuggetsForCar(car);
+        g_Catalog.push_back(car);
+    }
+    
     g_SelectedCarIndex = 0;
 
     while (!glfwWindowShouldClose(window)) {
@@ -408,206 +373,225 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // Standard Full-Screen Layout Workspace
         int width, height;
         glfwGetWindowSize(window, &width, &height);
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImVec2((float)width, (float)height));
 
-        ImGui::Begin("Workspace Canvas", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_MenuBar);
+        ImGui::Begin("Workspace", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
-        // Menubar configuration
-        if (ImGui::BeginMenuBar()) {
-            if (ImGui::BeginMenu("File")) {
-                if (ImGui::MenuItem("Export Workspace (.zip)")) {
-                    exportWorkspace("workspace.zip");
-                }
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenuBar();
+        // -------------------------------------------------------------
+        // TOP STATS BAR
+        // -------------------------------------------------------------
+        ImGui::BeginChild("TopBar", ImVec2(0, 45), true);
+        
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextColored(ImVec4(0.00f, 0.60f, 0.95f, 1.00f), "My Collection");
+        
+        ImGui::SameLine();
+        if (ImGui::Button("Save")) {
+            exportWorkspace("workspace.zip");
         }
+        ImGui::SameLine();
+        ImGui::Button("Undo");
+        ImGui::SameLine();
+        ImGui::Button("Redo");
 
-        // Draw structural 3-panel split
+        ImGui::SameLine(300);
+        ImGui::Text("Total models: %d", g_TotalModels);
+        ImGui::SameLine();
+        ImGui::Text("| Starred: %d", g_StarredCount);
+        ImGui::SameLine();
+        ImGui::Text("| Random roller: [1] [3] [5]");
+
+        ImGui::SameLine((float)width - 130.0f);
+        if (ImGui::Button("Export ZIP")) {
+            exportWorkspace("workspace.zip");
+        }
+        ImGui::EndChild();
+
+        // Left, Middle, and Right Panel Sizing
         float panelWidth = (float)width / 3.0f;
+        float bodyHeight = (float)height - 65.0f;
 
         // -------------------------------------------------------------
-        // PANEL 1: CATALOG ENTRY & FILTER INDEX
+        // LEFT PANEL (CATALOG SEARCH, FILTERS, LISTS)
         // -------------------------------------------------------------
-        ImGui::BeginChild("LeftPanel", ImVec2(panelWidth - 10.0f, 0), true);
-        ImGui::Text("Diecast Catalogue Panel");
-        ImGui::Separator();
+        ImGui::BeginChild("LeftPanel", ImVec2(panelWidth - 10.0f, bodyHeight), true);
+        
+        ImGui::InputText("##Search", g_SearchInput, IM_ARRAYSIZE(g_SearchInput));
+        ImGui::SameLine();
+        ImGui::Button("Filter");
 
-        ImGui::InputText("API Key", g_ApiKeyInput, IM_ARRAYSIZE(g_ApiKeyInput), ImGuiInputTextFlags_Password);
-        ImGui::Separator();
-
-        ImGui::Text("Auto-Parse File Ingestion:");
-        ImGui::InputText("Filename", g_FilenameInput, IM_ARRAYSIZE(g_FilenameInput));
-        if (ImGui::Button("Add and Parse Entry")) {
-            DiecastCar newCar;
-            parseUploadedFilename(g_FilenameInput, newCar);
-            triggerNuggetsApi(newCar);
-            g_Catalog.push_back(newCar);
-            g_SelectedCarIndex = (int)g_Catalog.size() - 1;
+        ImGui::Text("Selected: 1 car");
+        if (ImGui::Button("Select all")) {
+            for (auto& car : g_Catalog) car.selected = true;
         }
+        ImGui::SameLine();
+        if (ImGui::Button("Deselect all")) {
+            for (auto& car : g_Catalog) car.selected = false;
+        }
+        ImGui::SameLine();
+        ImGui::Button("Unload (1)");
 
         ImGui::Separator();
-        ImGui::Text("Collection Database:");
+        
+        ImGui::BeginChild("ScrollableGrid", ImVec2(0, bodyHeight - 120.0f), false);
+        
+        // Render stylized item cards mimicking the layout
         for (int i = 0; i < (int)g_Catalog.size(); ++i) {
-            std::string label = g_Catalog[i].make + " " + g_Catalog[i].model + " (" + std::to_string(g_Catalog[i].year) + ")";
-            if (ImGui::Selectable(label.c_str(), g_SelectedCarIndex == i)) {
+            auto& car = g_Catalog[i];
+            
+            ImGui::PushID(i);
+            ImGui::BeginChild((std::string("CardChild##") + std::to_string(i)).c_str(), ImVec2(100, 100), true, ImGuiWindowFlags_NoScrollbar);
+            
+            ImGui::Checkbox("##Sel", &car.selected);
+            ImGui::TextWrapped("%s", car.make.c_str());
+            
+            // Check selection status
+            if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(0)) {
                 g_SelectedCarIndex = i;
-                g_ChatLog.clear();
+            }
+            
+            ImGui::EndChild();
+            ImGui::PopID();
+
+            // Row wraps every 3 cards
+            if ((i + 1) % 3 != 0) {
+                ImGui::SameLine();
             }
         }
+        ImGui::EndChild();
+
+        ImGui::Button("Fix/Re-link folder");
         ImGui::EndChild();
 
         ImGui::SameLine();
 
         // -------------------------------------------------------------
-        // PANEL 2: MIDDLE VISUAL STAGE & COLLAGE STAGE
+        // MIDDLE PANEL (SLIDESHOW, PLAYER, PHOTO VIEWPORT, NOTES)
         // -------------------------------------------------------------
-        ImGui::BeginChild("MiddlePanel", ImVec2(panelWidth - 10.0f, 0), true);
-        if (ImGui::BeginTabBar("MiddleTabs")) {
-            if (ImGui::BeginTabItem("Catalog Cards")) {
-                for (int i = 0; i < (int)g_Catalog.size(); ++i) {
-                    auto& car = g_Catalog[i];
-                    ImGui::BeginChild((std::string("Card##") + std::to_string(i)).c_str(), ImVec2(0, 100), true);
-                    ImGui::Text("%d %s %s", car.year, car.make.c_str(), car.model.c_str());
-                    ImGui::Text("Color: %s | Scale: %s", car.color.c_str(), car.scale.c_str());
-                    ImGui::Text("Condition: %s", car.condition.c_str());
-                    if (ImGui::Checkbox((std::string("Favorite##") + std::to_string(i)).c_str(), &car.favorite)) {}
-                    ImGui::EndChild();
-                }
-                ImGui::EndTabItem();
-            }
+        ImGui::BeginChild("MiddlePanel", ImVec2(panelWidth - 10.0f, bodyHeight), true);
+        
+        ImGui::Text("Slideshow Player (Paused) | 1 of %zu photos", g_Catalog.size());
+        ImGui::Button("Play"); ImGui::SameLine();
+        ImGui::Button("Forward"); ImGui::SameLine();
+        ImGui::Button("Reverse"); ImGui::SameLine();
+        ImGui::Button("Random 1"); ImGui::SameLine();
+        ImGui::Button("Random 2");
 
-            if (ImGui::BeginTabItem("Collage Stage")) {
-                ImGui::Text("Layout Controls:");
-                ImGui::Combo("Layout", &g_ActiveLayout, "Grid\0Strip\0Polaroid\0Stacked\0");
-                ImGui::Combo("Theme Texture", &g_ActiveTheme, "Leather\0Carbon Fiber\0Fine Wood\0Deep Space\0");
-                ImGui::SliderFloat("Spacing", &g_ItemSpacing, 0.0f, 32.0f);
-                ImGui::SliderFloat("Borders", &g_BorderSize, 0.0f, 10.0f);
+        ImGui::Button("1s"); ImGui::SameLine();
+        ImGui::Button("2s"); ImGui::SameLine();
+        ImGui::Button("3s"); ImGui::SameLine();
+        ImGui::Button("5s");
 
-                ImDrawList* drawList = ImGui::GetWindowDrawList();
-                ImVec2 canvasPos = ImGui::GetCursorScreenPos();
-                ImVec2 canvasSize = ImVec2(panelWidth - 30.0f, 300.0f);
+        ImGui::Separator();
 
-                // Draw background box mapping textures based on selection
-                ImU32 themeBgColor = IM_COL32(40, 40, 40, 255);
-                if (g_ActiveTheme == THEME_LEATHER) themeBgColor = IM_COL32(50, 30, 20, 255);
-                else if (g_ActiveTheme == THEME_CARBON) themeBgColor = IM_COL32(25, 25, 25, 255);
-                else if (g_ActiveTheme == THEME_WOOD) themeBgColor = IM_COL32(110, 60, 30, 255);
-                else if (g_ActiveTheme == THEME_SPACE) themeBgColor = IM_COL32(10, 10, 35, 255);
-
-                drawList->AddRectFilled(canvasPos, ImVec2(canvasPos.x + canvasSize.x, canvasPos.y + canvasSize.y), themeBgColor);
-
-                // Render mock representations representing the layout parameters
-                float itemWidth = 80.0f;
-                float itemHeight = 60.0f;
-                float currentX = canvasPos.x + 10.0f;
-                float currentY = canvasPos.y + 10.0f;
-
-                for (size_t i = 0; i < g_Catalog.size(); ++i) {
-                    ImVec2 itemMin = ImVec2(currentX, currentY);
-                    ImVec2 itemMax = ImVec2(currentX + itemWidth, currentY + itemHeight);
-
-                    if (g_ActiveLayout == LAYOUT_STACKED) {
-                        itemMin = ImVec2(canvasPos.x + 20.0f + (i * 25.0f), canvasPos.y + 40.0f + (i * 15.0f));
-                        itemMax = ImVec2(itemMin.x + itemWidth, itemMin.y + itemHeight);
-                    }
-
-                    // Render mock picture cards
-                    drawList->AddRectFilled(itemMin, itemMax, IM_COL32(150, 150, 150, 255));
-                    if (g_BorderSize > 0) {
-                        drawList->AddRect(itemMin, itemMax, IM_COL32(255, 255, 255, 255), 0.0f, 0, g_BorderSize);
-                    }
-
-                    if (g_ActiveLayout == LAYOUT_GRID) {
-                        currentX += itemWidth + g_ItemSpacing;
-                        if (currentX + itemWidth > canvasPos.x + canvasSize.x) {
-                            currentX = canvasPos.x + 10.0f;
-                            currentY += itemHeight + g_ItemSpacing;
-                        }
-                    } else if (g_ActiveLayout == LAYOUT_STRIP || g_ActiveLayout == LAYOUT_POLAROID) {
-                        currentX += itemWidth + g_ItemSpacing;
-                    }
-                }
-
-                ImGui::Dummy(canvasSize);
-                ImGui::EndTabItem();
-            }
-            ImGui::EndTabBar();
-        }
-        ImGui::EndChild();
-
-        ImGui::SameLine();
-
-        // -------------------------------------------------------------
-        // PANEL 3: AI HISTOLOGY NUGGETS & CHAT PROXY
-        // -------------------------------------------------------------
-        ImGui::BeginChild("RightPanel", ImVec2(0, 0), true);
         if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
             auto& car = g_Catalog[g_SelectedCarIndex];
 
-            ImGui::Text("AI Histology Nuggets: %s %s", car.make.c_str(), car.model.c_str());
-            ImGui::Text("Collectability Score: %.1f / 10.0", car.collectabilityScore);
-            ImGui::ProgressBar(car.collectabilityScore / 10.0f, ImVec2(0.0f, 0.0f));
-            
-            ImGui::Separator();
-            ImGui::TextWrapped("History: %s", car.history.c_str());
-
-            ImGui::Separator();
-            ImGui::Text("Historical Specs:");
-            for (const auto& spec : car.specs) {
-                ImGui::Text("- %s: %s", spec.first.c_str(), spec.second.c_str());
-            }
-
-            ImGui::Separator();
-            ImGui::Text("Automotive Trivia:");
-            for (const auto& fact : car.facts) {
-                ImGui::TextWrapped("* %s", fact.c_str());
-            }
-
-            ImGui::Separator();
-            ImGui::Text("Gemini Q&A Terminal:");
-
-            ImGui::BeginChild("ChatLogs", ImVec2(0, 150), true);
-            for (const auto& log : g_ChatLog) {
-                ImGui::TextColored(log.first == "You" ? ImVec4(0.3f, 0.8f, 0.3f, 1.0f) : ImVec4(0.3f, 0.6f, 0.9f, 1.0f), "%s: ", log.first.c_str());
-                ImGui::SameLine();
-                ImGui::TextWrapped("%s", log.second.c_str());
-            }
-            ImGui::EndChild();
-
-            ImGui::InputText("Ask...", g_ChatInput, IM_ARRAYSIZE(g_ChatInput));
+            // Collector Bot input field
+            ImGui::Text("ASK COLLECTOR BOT:");
             ImGui::SameLine();
-            if (ImGui::Button("Send")) {
+            ImGui::InputText("##ChatIn", g_ChatInput, IM_ARRAYSIZE(g_ChatInput));
+            ImGui::SameLine();
+            if (ImGui::Button("Ask")) {
                 std::string question = g_ChatInput;
                 if (!question.empty()) {
                     g_ChatLog.push_back({"You", question});
                     std::string reply = getGeminiChatResponse(question, car);
-                    g_ChatLog.push_back({"Gemini", reply});
+                    g_ChatLog.push_back({"Collector Bot", reply});
                     memset(g_ChatInput, 0, sizeof(g_ChatInput));
                 }
             }
-        } else {
-            ImGui::Text("Select a model vehicle to view catalog nuggets.");
+
+            ImGui::Separator();
+            ImGui::Text("DIECAST IDENTIFIER: %s", car.filename.c_str());
+            ImGui::Text("TAGS: [ %s ]  + Add", car.tags.c_str());
+
+            // Image display area placeholder with styled margins
+            ImDrawList* drawList = ImGui::GetWindowDrawList();
+            ImVec2 cursor = ImGui::GetCursorScreenPos();
+            ImVec2 imgSize = ImVec2(panelWidth - 30.0f, 220.0f);
+
+            // Large navy colored backdrop for image preview
+            drawList->AddRectFilled(cursor, ImVec2(cursor.x + imgSize.x, cursor.y + imgSize.y), IM_COL32(10, 16, 26, 255));
+            drawList->AddRect(cursor, ImVec2(cursor.x + imgSize.x, cursor.y + imgSize.y), IM_COL32(0, 150, 255, 100), 4.0f, 0, 2.0f);
+
+            // Centered placeholder picture border
+            ImVec2 centerMin = ImVec2(cursor.x + 40.0f, cursor.y + 20.0f);
+            ImVec2 centerMax = ImVec2(cursor.x + imgSize.x - 40.0f, cursor.y + imgSize.y - 20.0f);
+            drawList->AddRectFilled(centerMin, centerMax, IM_COL32(235, 235, 235, 255));
+            drawList->AddText(ImVec2(centerMin.x + 20.0f, centerMin.y + 70.0f), IM_COL32(20, 20, 20, 255), "TOMICA TRAVEL BUS VIEWPORT");
+
+            ImGui::Dummy(imgSize);
+
+            ImGui::Separator();
+            ImGui::Text("CURATOR'S NOTES:");
+            ImGui::InputTextMultiline("##Notes", g_CuratorNotes, IM_ARRAYSIZE(g_CuratorNotes), ImVec2(0, 60));
+        }
+        ImGui::EndChild();
+
+        ImGui::SameLine();
+
+        // -------------------------------------------------------------
+        // RIGHT PANEL (HISTOLOGY NUGGETS TABS)
+        // -------------------------------------------------------------
+        ImGui::BeginChild("RightPanel", ImVec2(0, bodyHeight), true);
+        if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
+            auto& car = g_Catalog[g_SelectedCarIndex];
+
+            // Stylized high-contrast Neon Tabs
+            if (ImGui::BeginTabBar("RightTabSystem")) {
+                if (ImGui::BeginTabItem("Real History")) {
+                    ImGui::TextWrapped("%s", car.realHistory.c_str());
+                    ImGui::EndTabItem();
+                }
+
+                if (ImGui::BeginTabItem("Factory Specs")) {
+                    ImGui::TextWrapped("%s", car.factorySpecs.c_str());
+                    ImGui::EndTabItem();
+                }
+
+                if (ImGui::BeginTabItem("Nuggets")) {
+                    ImGui::Text("REAL CAR COLLECTABILITY:");
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(0.00f, 0.60f, 0.95f, 1.00f), "Score: %.2f / 10", car.collectabilityScore);
+                    ImGui::ProgressBar(car.collectabilityScore / 10.0f, ImVec2(-1.0f, 12.0f));
+
+                    ImGui::Separator();
+                    ImGui::Text("NOTABLE TRIVIA NUGGETS:");
+
+                    // Render trivia blocks as individual child segments
+                    for (int n = 0; n < (int)car.triviaNuggets.size(); ++n) {
+                        ImGui::BeginChild((std::string("TriviaBox##") + std::to_string(n)).c_str(), ImVec2(0, 65), true);
+                        ImGui::TextWrapped("%s", car.triviaNuggets[n].c_str());
+                        ImGui::EndChild();
+                    }
+                    ImGui::EndTabItem();
+                }
+                ImGui::EndTabBar();
+            }
+
+            ImGui::Separator();
+            ImGui::Text("CURATOR REMARKS");
+            ImGui::TextWrapped("Folder path: %s", car.folderPath.c_str());
         }
         ImGui::EndChild();
 
         ImGui::End();
 
-        // Rendering commands
+        // Graphics Clear and swap buffers
         ImGui::Render();
         glViewport(0, 0, width, height);
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClearColor(0.04f, 0.06f, 0.10f, 1.00f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
     }
 
-    // Terminate engine context
+    // Clean execution contexts
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
