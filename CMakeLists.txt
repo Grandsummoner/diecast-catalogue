@@ -35,7 +35,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(miniz)
 
-# 4. Fetch Dear ImGui for UI Rendering
+# 4. Fetch stb for standalone image decoding
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG master
+)
+FetchContent_MakeAvailable(stb)
+
+# 5. Fetch Dear ImGui for UI Rendering
 FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
@@ -64,6 +72,7 @@ target_include_directories(DiecastCatalogue PRIVATE
     ${imgui_SOURCE_DIR}/backends
     ${json_SOURCE_DIR}/single_include
     ${miniz_SOURCE_DIR}
+    ${stb_SOURCE_DIR}
 )
 
 target_link_libraries(DiecastCatalogue PRIVATE
