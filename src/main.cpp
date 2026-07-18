@@ -2,6 +2,10 @@
 #include "utils.hpp"
 #include "theme.hpp"
 
+#include <algorithm> // Critical: Resolves std::sort and std::transform errors
+#include <ctime>
+#include <cstdlib>
+
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
@@ -339,9 +343,7 @@ int main() {
 
         ImGui::SameLine();
 
-        // -------------------------------------------------------------
-        // PANEL 3: RIGHT PANEL — RICH TEXT & CHATBOT (30% Width)
-        // -------------------------------------------------------------
+        // Panel 3: Right (30%)
         ImGui::BeginChild("RightPanel", ImVec2(0, bodyHeight), true);
         if (g_SelectedCarIndex >= 0 && g_SelectedCarIndex < (int)g_Catalog.size()) {
             auto& car = g_Catalog[g_SelectedCarIndex];
@@ -414,7 +416,7 @@ int main() {
         }
         ImGui::EndChild();
 
-        // Dialog verification overlays
+        // Modals
         if (g_ShowImportConfirmPrompt) ImGui::OpenPopup("Confirm Import Queue?");
         if (ImGui::BeginPopupModal("Confirm Import Queue?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("Confirm ingestion queue? You are about to import %zu file(s) into your current workspace catalog.", g_PendingImportPaths.size());
