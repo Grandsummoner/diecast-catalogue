@@ -2,28 +2,20 @@
 #include "utils.hpp"
 #include "theme.hpp"
 
-#include <algorithm> // Critical: Resolves std::sort and std::transform errors
+#include <algorithm> // Essential to resolve std::sort and std::transform
 #include <ctime>
 #include <cstdlib>
 
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
-// -------------------------------------------------------------
-// MAIN RENDER LOOP & WINDOW CALLBACKS
-// -------------------------------------------------------------
-
 int main() {
     if (!glfwInit()) return -1;
 
     GLFWwindow* window = glfwCreateWindow(1440, 800, "My Collection - Diecast Photo Catalogue", NULL, NULL);
-    if (!window) {
-        glfwTerminate();
-        return -1;
-    }
+    if (!window) { glfwTerminate(); return -1; }
 
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
+    glfwMakeContextCurrent(window); glfwSwapInterval(1);
 
     // Bind system OS callbacks to native GLFW windows
     glfwSetWindowCloseCallback(window, glfw_window_close_callback);
@@ -33,54 +25,48 @@ int main() {
     ImGui::CreateContext();
     ApplyTheme(g_ActiveTheme);
 
-    // High-readability font scale modifier (Upsized typography)
-    ImGui::GetIO().FontGlobalScale = 1.30f;
+    ImGuiIO& io = ImGui::GetIO();
+    // System Font Loader: Use Comic Sans MS throughout the visual elements
+    std::string fontPath = "C:\\Windows\\Fonts\\comic.ttf";
+    if (fs::exists(fontPath)) {
+        io.Fonts->AddFontFromFileTTF(fontPath.c_str(), 16.0f);
+    } else {
+        io.Fonts->AddFontDefault();
+    }
+
+    // High-readability font scale modifier
+    io.FontGlobalScale = 1.30f;
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
 
-    // Populate catalog database with initial files
-    std::vector<std::string> mockFiles = {
-        "1-Hino Grandview Bus (Travel).JPG", "1-Mits Pajero Safari.JPG", "1-Mits Fuso Bus.JPG",
-        "10-Lot Super GT.JPG", "10-Sub Sambar.JPG", "10-Sub Sambar Truck.JPG",
-        "2-Mits Canter.JPG", "2-Subaru WRX.JPG", "2-Tadano Crane.JPG", "3-Anime Delivery.JPG", "3-Toyo Dyna.JPG"
-    };
-
-    for (const auto& name : mockFiles) {
-        DiecastCar car;
-        parseCarInfo(name, car);
-        applyOfflineSpecsAndTrivia(car);
-        g_Catalog.push_back(car);
+    // Startup Load: Automatically restore the last saved workspace state if present
+    if (fs::exists("workspace.zip")) {
+        importWorkspace("workspace.zip");
     }
-    g_SelectedCarIndex = 0;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
         // Gacha roller animation calculations
         if (g_GachaRolling && !g_Catalog.empty()) {
-            g_GachaTimer += 0.016f;
-            g_GachaDuration += 0.016f;
+            g_GachaTimer += 0.016f; g_GachaDuration += 0.016f;
             if (g_GachaTimer >= g_GachaInterval) {
                 g_GachaTimer = 0.0f;
                 g_SelectedCarIndex = (g_SelectedCarIndex + 1) % g_Catalog.size();
                 g_GachaInterval += 0.015f;
             }
             if (g_GachaDuration >= 2.0f) {
-                g_GachaRolling = false;
-                g_GachaInterval = 0.05f;
+                g_GachaRolling = false; g_GachaInterval = 0.05f;
                 g_SelectedCarIndex = std::rand() % g_Catalog.size();
             }
         }
 
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
+        ImGui_ImplOpenGL3_NewFrame(); ImGui_ImplGlfw_NewFrame(); ImGui::NewFrame();
 
         int width, height;
         glfwGetWindowSize(window, &width, &height);
-        ImGui::SetNextWindowPos(ImVec2(0, 0));
-        ImGui::SetNextWindowSize(ImVec2((float)width, (float)height));
+        ImGui::SetNextWindowPos(ImVec2(0, 0)); ImGui::SetNextWindowSize(ImVec2((float)width, (float)height));
         ImGui::Begin("Workspace", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
         // -------------------------------------------------------------
@@ -88,26 +74,30 @@ int main() {
         // -------------------------------------------------------------
         ImGui::BeginChild("TopBar", ImVec2(0, 45), true);
         ImGui::AlignTextToFramePadding();
-        ImGui::TextColored(ImVec4(0.30f, 0.48f, 1.00f, 1.00f), "My Collection");
+        ImGui::TextColored(ImVec4(0.30f, 0.48f, 1.00f, 1.00f), "My Collection"); ImGui::SameLine();
+        
+        // Editable Collection Name Field
+        ImGui::SetNextItemWidth(200);
+        if (ImGui::InputText("##CollName", g_CollectionName, IM_ARRAYSIZE(g_CollectionName))) {
+            g_UnsavedChanges = true;
+        }
         ImGui::SameLine();
-        if (ImGui::Button("Save")) exportWorkspace("workspace.zip");
-        ImGui::SameLine();
-        if (ImGui::Button("Undo")) ExecuteUndo();
-        ImGui::SameLine();
-        if (ImGui::Button("Redo")) ExecuteRedo();
-        ImGui::SameLine();
+
+        if (ImGui::Button("Save")) exportWorkspace("workspace.zip"); ImGui::SameLine();
+        if (ImGui::Button("Undo")) ExecuteUndo(); ImGui::SameLine();
+        if (ImGui::Button("Redo")) ExecuteRedo(); ImGui::SameLine();
         ImGui::TextDisabled("|"); ImGui::SameLine();
         ImGui::Text("Total: %zu", g_Catalog.size()); ImGui::SameLine();
         ImGui::TextDisabled("|"); ImGui::SameLine();
         if (ImGui::Button("Gacha Spin")) {
-            if (!g_GachaRolling) {
+            if (!g_GachaRolling && !g_Catalog.empty()) {
                 g_GachaRolling = true; g_GachaTimer = 0.0f; g_GachaInterval = 0.05f; g_GachaDuration = 0.0f;
             }
         }
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
         ImGui::Text("%s", g_SoundscapeNames[g_ActiveSoundscape]); ImGui::SameLine();
-        if (ImGui::Button("Toggle Ambient")) g_ActiveSoundscape = (g_ActiveSoundscape + 1) % 4;
-        ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
+        if (ImGui::Button("Toggle Ambient")) g_ActiveSoundscape = (g_ActiveSoundscape + 1) % 4; ImGui::SameLine();
+        ImGui::TextDisabled("|"); ImGui::SameLine();
         if (ImGui::Button("Theme")) {
             g_ActiveTheme = static_cast<Theme>((g_ActiveTheme + 1) % 3);
             ApplyTheme(g_ActiveTheme);
@@ -271,9 +261,12 @@ int main() {
                 ImGui::EndTabItem();
             }
 
+            // MODE 2: TACTILE POLAROID SCATTER (Draggable elements inside workspace child canvas)
             if (ImGui::BeginTabItem("Polaroid Scatter")) {
                 ImGui::Text("Tabletop Desk - Drag and organize your collection scatter cards!");
-                if (ImGui::Button("Toss/Scatter Cards")) {
+                
+                // Initialize card offsets automatically when loaded
+                if (g_PolaroidCards.empty() && !g_Catalog.empty()) {
                     g_PolaroidCards.clear();
                     for (int i = 0; i < (int)g_Catalog.size(); ++i) {
                         PolaroidCard pc; pc.carIndex = i;
@@ -282,6 +275,16 @@ int main() {
                         g_PolaroidCards.push_back(pc);
                     }
                 }
+                if (ImGui::Button("Toss/Scatter Cards")) {
+                    g_PolaroidCards.clear();
+                    for (int i = 0; i < (int)g_Catalog.size(); ++i) {
+                        PolaroidCard pc; pc.carIndex = i;
+                        pc.position = ImVec2(50.0f + (std::rand() % 300), 80.0f + (std::rand() % 250));
+                        pc.initialized = true;
+                        g_PolaroidCards.push_back(pc);
+                    }
+                }
+
                 ImGui::Separator();
                 ImVec2 scatterCursor = ImGui::GetCursorScreenPos();
                 ImDrawList* dlist = ImGui::GetWindowDrawList();
@@ -290,19 +293,35 @@ int main() {
                 ImGui::BeginChild("ScatterStage", ImVec2(0, bodyHeight - 120.0f), false, ImGuiWindowFlags_NoScrollbar);
                 for (size_t i = 0; i < g_PolaroidCards.size(); ++i) {
                     auto& pc = g_PolaroidCards[i]; if (!pc.initialized) continue;
-                    ImGui::SetNextWindowPos(ImVec2(scatterCursor.x + pc.position.x, scatterCursor.y + pc.position.y), ImGuiCond_Appearing);
-                    ImGui::SetNextWindowSize(ImVec2(100, 110));
+                    ImGui::SetCursorPos(pc.position);
                     ImGui::PushID(static_cast<int>(i));
-                    ImGui::Begin((std::string("CardWindow##") + std::to_string(i)).c_str(), NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar);
-                    ImGui::Text("%s", g_Catalog[pc.carIndex].make.c_str());
-                    ImGui::Separator();
-                    ImGui::Text("Scale: %s", g_Catalog[pc.carIndex].scale.c_str());
-                    ImVec2 wpos = ImGui::GetWindowPos(); pc.position = ImVec2(wpos.x - scatterCursor.x, wpos.y - scatterCursor.y);
-                    ImGui::End(); ImGui::PopID();
+
+                    // Draggable card element structured like a physical Polaroid
+                    ImGui::BeginChild((std::string("CardWin##") + std::to_string(i)).c_str(), ImVec2(120, 150), true, ImGuiWindowFlags_NoScrollbar);
+                    GLuint tex = GetOrCreateTexture(g_Catalog[pc.carIndex].folderPath);
+                    if (tex != 0) {
+                        ImGui::Image((void*)(intptr_t)tex, ImVec2(100, 56));
+                    } else {
+                        ImGui::Text("    🚗    ");
+                    }
+                    std::string shortName = g_Catalog[pc.carIndex].make + " " + g_Catalog[pc.carIndex].model;
+                    if (shortName.length() > 10) shortName = shortName.substr(0, 8) + "..";
+                    ImGui::TextWrapped("%s", shortName.c_str());
+
+                    // Manual drag-offset calculations via window hover mouse inputs
+                    if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                        ImVec2 delta = ImGui::GetIO().MouseDelta;
+                        pc.position.x += delta.x / ImGui::GetIO().FontGlobalScale;
+                        pc.position.y += delta.y / ImGui::GetIO().FontGlobalScale;
+                    }
+                    ImGui::EndChild();
+                    ImGui::PopID();
                 }
-                ImGui::EndChild(); ImGui::EndTabItem();
+                ImGui::EndChild();
+                ImGui::EndTabItem();
             }
 
+            // MODE 3: CURATOR BRACKET SHOWDOWNS (Versus photo rendering)
             if (ImGui::BeginTabItem("Curator Showdown")) {
                 ImGui::Text("Showdown Challenge! Crown today's active showroom winner.");
                 if (ImGui::Button("Deal Versus Matchup") && g_Catalog.size() >= 2) {
@@ -312,20 +331,34 @@ int main() {
                 }
                 if (g_ShowdownActive && g_ShowdownLeftIndex != -1 && g_ShowdownRightIndex != -1) {
                     ImGui::Separator();
-                    ImGui::BeginChild("LeftShowdownCard", ImVec2((middlePanelWidth / 2.0f) - 20.0f, 200), true);
+                    
+                    // Left competitor card (Renders the actual model photo side-by-side)
+                    ImGui::BeginChild("LeftShowdownCard", ImVec2((middlePanelWidth / 2.0f) - 20.0f, 240), true);
                     auto& carL = g_Catalog[g_ShowdownLeftIndex];
-                    ImGui::Text("%d %s", carL.year, carL.make.c_str()); ImGui::TextWrapped("%s", carL.model.c_str()); ImGui::Separator();
-                    ImGui::Text("Record: %d Wins", carL.showdownWins);
+                    ImGui::Text("%d %s", carL.year, carL.make.c_str()); ImGui::TextWrapped("%s", carL.model.c_str());
+                    
+                    GLuint texL = GetOrCreateTexture(carL.folderPath);
+                    if (texL != 0) ImGui::Image((void*)(intptr_t)texL, ImVec2(150, 84));
+                    else ImGui::Text("   🚗   ");
+
+                    ImGui::Separator(); ImGui::Text("Record: %d Wins", carL.showdownWins);
                     if (ImGui::Button("Select Left")) {
                         PushHistoryState(); carL.showdownWins++; carL.showdownBattles++;
                         g_Catalog[g_ShowdownRightIndex].showdownBattles++;
                         g_ShowdownActive = false; g_UnsavedChanges = true;
                     }
                     ImGui::EndChild(); ImGui::SameLine(); ImGui::AlignTextToFramePadding(); ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.0f), " ⚔ VS "); ImGui::SameLine();
-                    ImGui::BeginChild("RightShowdownCard", ImVec2(0, 200), true);
+                    
+                    // Right competitor card (Renders the actual model photo side-by-side)
+                    ImGui::BeginChild("RightShowdownCard", ImVec2(0, 240), true);
                     auto& carR = g_Catalog[g_ShowdownRightIndex];
-                    ImGui::Text("%d %s", carR.year, carR.make.c_str()); ImGui::TextWrapped("%s", carR.model.c_str()); ImGui::Separator();
-                    ImGui::Text("Record: %d Wins", carR.showdownWins);
+                    ImGui::Text("%d %s", carR.year, carR.make.c_str()); ImGui::TextWrapped("%s", carR.model.c_str());
+                    
+                    GLuint texR = GetOrCreateTexture(carR.folderPath);
+                    if (texR != 0) ImGui::Image((void*)(intptr_t)texR, ImVec2(150, 84));
+                    else ImGui::Text("   🚗   ");
+
+                    ImGui::Separator(); ImGui::Text("Record: %d Wins", carR.showdownWins);
                     if (ImGui::Button("Select Right")) {
                         PushHistoryState(); carR.showdownWins++; carR.showdownBattles++;
                         g_Catalog[g_ShowdownLeftIndex].showdownBattles++;
