@@ -1,6 +1,6 @@
-#include "utils.hpp"
 #include <windows.h>
 #include <winhttp.h>
+#include "utils.hpp"
 #include <filesystem>
 #include <algorithm>
 #include <fstream>
@@ -13,6 +13,9 @@
 #ifndef GL_CLAMP_TO_EDGE
 #define GL_CLAMP_TO_EDGE 0x812F
 #endif
+
+using json = nlohmann::json;
+namespace fs = std::filesystem;
 
 // Global state variable instantiations
 std::vector<DiecastCar> g_Catalog;
