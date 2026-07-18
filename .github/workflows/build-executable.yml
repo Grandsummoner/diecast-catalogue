@@ -21,7 +21,7 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure CMake Build Target
-        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
       - name: Compile Standalone Executable
         run: cmake --build build --config Release
