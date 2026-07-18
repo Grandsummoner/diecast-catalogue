@@ -5,12 +5,16 @@
 #include <algorithm> // Critical: Resolves std::sort and std::transform errors
 #include <ctime>
 #include <cstdlib>
-#include <filesystem> // Essential to resolve filesystem operations
+#include <filesystem>
 
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
 namespace fs = std::filesystem;
+
+// Global swipe offsets for Tinder-style Faceoff animations
+float g_LeftCardSwipeOffset = 0.0f;
+float g_RightCardSwipeOffset = 0.0f;
 
 int main() {
     if (!glfwInit()) return -1;
@@ -32,7 +36,7 @@ int main() {
     // System Font Loader: Use Comic Sans MS throughout the visual elements
     std::string fontPath = "C:\\Windows\\Fonts\\comic.ttf";
     if (fs::exists(fontPath)) {
-        io.Fonts->AddFontFromFileTTF(fontPath.c_str(), 16.0f);
+        io.Fonts->AddFontFromFileTTF(fontPath.c_str(), 15.0f);
     } else {
         io.Fonts->AddFontDefault();
     }
@@ -119,16 +123,22 @@ int main() {
         // PANEL 1: LEFT PANEL — FILE & PHOTO MANAGEMENT (20% Width)
         // -------------------------------------------------------------
         ImGui::BeginChild("LeftPanel", ImVec2(leftPanelWidth - 10.0f, bodyHeight), true);
-        ImGui::Text("Ingestion / Photo Banks:");
-        if (ImGui::Button("File Ingest")) {
+        
+        // Polished Neumorphic Upload Explorer Drop-Zone Card
+        ImGui::BeginChild("UploadExplorerCard", ImVec2(0, 125), true);
+        ImGui::Text(" 📂 Drag & Drop here");
+        ImGui::TextDisabled(" Or use manual uploader:");
+        if (ImGui::Button("Upload Files")) {
             g_PendingImportPaths = { "12-Tomica Subaru Sambar.JPG" };
             g_ShowImportConfirmPrompt = true;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Folder Ingest")) {
+        if (ImGui::Button("Upload Folder")) {
             g_PendingImportPaths = { "13-Crane.JPG", "14-Toyota.JPG" };
             g_ShowImportConfirmPrompt = true;
         }
+        ImGui::EndChild();
+
         ImGui::Separator();
         ImGui::InputText("##Search", g_SearchInput, IM_ARRAYSIZE(g_SearchInput));
         ImGui::SameLine();
@@ -153,7 +163,7 @@ int main() {
             g_UnsavedChanges = true;
         }
         ImGui::Separator();
-        ImGui::BeginChild("IndexedGrid", ImVec2(0, bodyHeight - 180.0f), false);
+        ImGui::BeginChild("IndexedGrid", ImVec2(0, bodyHeight - 310.0f), false);
         for (int i = 0; i < (int)g_Catalog.size(); ++i) {
             auto& car = g_Catalog[i];
             if (strlen(g_SearchInput) > 0) {
@@ -165,8 +175,13 @@ int main() {
             }
             ImGui::PushID(i);
             bool isSelected = (g_SelectedCarIndex == i);
-            if (isSelected) ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyle().Colors[ImGuiCol_ButtonActive]);
-            else ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyle().Colors[ImGuiCol_FrameBg]);
+            if (isSelected) {
+                ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyle().Colors[ImGuiCol_ButtonActive]);
+                // Force high-contrast white text for selected cards to fix dark-blue/black text unreadability
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, 1.00f));
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyle().Colors[ImGuiCol_FrameBg]);
+            }
 
             ImGui::BeginChild((std::string("CardGridChild##") + std::to_string(i)).c_str(), ImVec2(105, 110), true, ImGuiWindowFlags_NoScrollbar);
             ImGui::Checkbox("##SelectCheck", &car.selected); ImGui::SameLine();
@@ -186,6 +201,7 @@ int main() {
             if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(0)) g_SelectedCarIndex = i;
             ImGui::EndChild();
             ImGui::PopStyleColor();
+            if (isSelected) ImGui::PopStyleColor(); // Pop both ChildBg and Text
             ImGui::PopID();
             if ((i + 1) % 2 != 0) ImGui::SameLine();
         }
@@ -264,7 +280,7 @@ int main() {
                 ImGui::EndTabItem();
             }
 
-            // MODE 2: TACTILE POLAROID SCATTER (Draggable elements inside workspace child canvas)
+            // MODE 2: TACTILE POLAROID SCATTER (Virtual Shoebox with Large Cards & Short Specs)
             if (ImGui::BeginTabItem("Polaroid Scatter")) {
                 ImGui::Text("Tabletop Desk - Drag and organize your collection scatter cards!");
                 
@@ -273,7 +289,7 @@ int main() {
                     g_PolaroidCards.clear();
                     for (int i = 0; i < (int)g_Catalog.size(); ++i) {
                         PolaroidCard pc; pc.carIndex = i;
-                        pc.position = ImVec2(50.0f + (std::rand() % 200), 80.0f + (std::rand() % 150));
+                        pc.position = ImVec2(30.0f + (std::rand() % 200), 50.0f + (std::rand() % 120));
                         pc.rotation = (float)(std::rand() % 30 - 15); pc.initialized = true;
                         g_PolaroidCards.push_back(pc);
                     }
@@ -282,7 +298,7 @@ int main() {
                     g_PolaroidCards.clear();
                     for (int i = 0; i < (int)g_Catalog.size(); ++i) {
                         PolaroidCard pc; pc.carIndex = i;
-                        pc.position = ImVec2(50.0f + (std::rand() % 300), 80.0f + (std::rand() % 250));
+                        pc.position = ImVec2(30.0f + (std::rand() % 300), 50.0f + (std::rand() % 200));
                         pc.initialized = true;
                         g_PolaroidCards.push_back(pc);
                     }
@@ -299,17 +315,21 @@ int main() {
                     ImGui::SetCursorPos(pc.position);
                     ImGui::PushID(static_cast<int>(i));
 
-                    // Draggable card element structured like a physical Polaroid
-                    ImGui::BeginChild((std::string("CardWin##") + std::to_string(i)).c_str(), ImVec2(120, 150), true, ImGuiWindowFlags_NoScrollbar);
+                    // Draggable card element structured like a physical Polaroid (Large size constraint)
+                    ImGui::BeginChild((std::string("CardWin##") + std::to_string(i)).c_str(), ImVec2(165, 185), true, ImGuiWindowFlags_NoScrollbar);
                     GLuint tex = GetOrCreateTexture(g_Catalog[pc.carIndex].folderPath);
                     if (tex != 0) {
-                        ImGui::Image((void*)(intptr_t)tex, ImVec2(100, 56));
+                        ImGui::Image((void*)(intptr_t)tex, ImVec2(145, 80));
                     } else {
                         ImGui::Text("    🚗    ");
                     }
-                    std::string shortName = g_Catalog[pc.carIndex].make + " " + g_Catalog[pc.carIndex].model;
-                    if (shortName.length() > 10) shortName = shortName.substr(0, 8) + "..";
-                    ImGui::TextWrapped("%s", shortName.c_str());
+                    
+                    // Display details under the photo
+                    ImGui::Text("%d %s", g_Catalog[pc.carIndex].year, g_Catalog[pc.carIndex].make.c_str());
+                    std::string shortModel = g_Catalog[pc.carIndex].model;
+                    if (shortModel.length() > 14) shortModel = shortModel.substr(0, 12) + "..";
+                    ImGui::TextDisabled("%s", shortModel.c_str());
+                    ImGui::TextDisabled("Scale: %s", g_Catalog[pc.carIndex].scale.c_str());
 
                     // Manual drag-offset calculations via window hover mouse inputs
                     if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
@@ -324,52 +344,81 @@ int main() {
                 ImGui::EndTabItem();
             }
 
-            // MODE 3: CURATOR BRACKET SHOWDOWNS (Versus photo rendering)
-            if (ImGui::BeginTabItem("Curator Showdown")) {
-                ImGui::Text("Showdown Challenge! Crown today's active showroom winner.");
-                if (ImGui::Button("Deal Versus Matchup") && g_Catalog.size() >= 2) {
+            // MODE 3: FACE-OFF CHALLENGE (Tinder-style draggable swipes)
+            if (ImGui::BeginTabItem("Faceoff")) {
+                ImGui::Text("Tinder Face-off Arena! Drag/swipe either card horizontally to vote.");
+                if ((g_ShowdownLeftIndex == -1 || g_ShowdownRightIndex == -1) && g_Catalog.size() >= 2) {
                     g_ShowdownLeftIndex = std::rand() % g_Catalog.size(); g_ShowdownRightIndex = std::rand() % g_Catalog.size();
                     while (g_ShowdownLeftIndex == g_ShowdownRightIndex) g_ShowdownRightIndex = std::rand() % g_Catalog.size();
+                    g_LeftCardSwipeOffset = 0.0f; g_RightCardSwipeOffset = 0.0f;
                     g_ShowdownActive = true;
                 }
+
                 if (g_ShowdownActive && g_ShowdownLeftIndex != -1 && g_ShowdownRightIndex != -1) {
                     ImGui::Separator();
                     
-                    // Left competitor card (Renders the actual model photo side-by-side)
-                    ImGui::BeginChild("LeftShowdownCard", ImVec2((middlePanelWidth / 2.0f) - 20.0f, 240), true);
+                    float halfCardWidth = (middlePanelWidth / 2.0f) - 20.0f;
+
+                    // Tinder Left Card: Left-click and Drag horizontally to Swipe Away / Vote!
+                    ImGui::SetCursorPosX(10.0f + g_LeftCardSwipeOffset);
+                    ImGui::BeginChild("LeftShowdownCard", ImVec2(halfCardWidth, 240), true);
                     auto& carL = g_Catalog[g_ShowdownLeftIndex];
                     ImGui::Text("%d %s", carL.year, carL.make.c_str()); ImGui::TextWrapped("%s", carL.model.c_str());
                     
                     GLuint texL = GetOrCreateTexture(carL.folderPath);
-                    if (texL != 0) ImGui::Image((void*)(intptr_t)texL, ImVec2(150, 84));
+                    if (texL != 0) ImGui::Image((void*)(intptr_t)texL, ImVec2(halfCardWidth - 20.0f, 100));
                     else ImGui::Text("   🚗   ");
+                    ImGui::Text("Wins: %d", carL.showdownWins);
 
-                    ImGui::Separator(); ImGui::Text("Record: %d Wins", carL.showdownWins);
-                    if (ImGui::Button("Select Left")) {
-                        PushHistoryState(); carL.showdownWins++; carL.showdownBattles++;
-                        g_Catalog[g_ShowdownRightIndex].showdownBattles++;
-                        g_ShowdownActive = false; g_UnsavedChanges = true;
+                    // Track drag swipe offset
+                    if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                        g_LeftCardSwipeOffset += ImGui::GetIO().MouseDelta.x / ImGui::GetIO().FontGlobalScale;
                     }
-                    ImGui::EndChild(); ImGui::SameLine(); ImGui::AlignTextToFramePadding(); ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.0f), " ⚔ VS "); ImGui::SameLine();
-                    
-                    // Right competitor card (Renders the actual model photo side-by-side)
-                    ImGui::BeginChild("RightShowdownCard", ImVec2(0, 240), true);
+                    // Release trigger
+                    if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                        if (g_LeftCardSwipeOffset > 150.0f || g_LeftCardSwipeOffset < -150.0f) {
+                            PushHistoryState(); carL.showdownWins++; carL.showdownBattles++;
+                            g_Catalog[g_ShowdownRightIndex].showdownBattles++;
+                            g_ShowdownLeftIndex = -1; g_ShowdownRightIndex = -1; // Trigger next matchup
+                            g_UnsavedChanges = true;
+                        }
+                        g_LeftCardSwipeOffset = 0.0f;
+                    }
+                    ImGui::EndChild();
+
+                    ImGui::SameLine();
+                    ImGui::AlignTextToFramePadding();
+                    ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.0f), " ⚔ ");
+                    ImGui::SameLine();
+
+                    // Tinder Right Card: Left-click and Drag horizontally to Swipe Away / Vote!
+                    ImGui::SetCursorPosX((middlePanelWidth / 2.0f) + 10.0f + g_RightCardSwipeOffset);
+                    ImGui::BeginChild("RightShowdownCard", ImVec2(halfCardWidth, 240), true);
                     auto& carR = g_Catalog[g_ShowdownRightIndex];
                     ImGui::Text("%d %s", carR.year, carR.make.c_str()); ImGui::TextWrapped("%s", carR.model.c_str());
                     
                     GLuint texR = GetOrCreateTexture(carR.folderPath);
-                    if (texR != 0) ImGui::Image((void*)(intptr_t)texR, ImVec2(150, 84));
+                    if (texR != 0) ImGui::Image((void*)(intptr_t)texR, ImVec2(halfCardWidth - 20.0f, 100));
                     else ImGui::Text("   🚗   ");
+                    ImGui::Text("Wins: %d", carR.showdownWins);
 
-                    ImGui::Separator(); ImGui::Text("Record: %d Wins", carR.showdownWins);
-                    if (ImGui::Button("Select Right")) {
-                        PushHistoryState(); carR.showdownWins++; carR.showdownBattles++;
-                        g_Catalog[g_ShowdownLeftIndex].showdownBattles++;
-                        g_ShowdownActive = false; g_UnsavedChanges = true;
+                    // Track drag swipe offset
+                    if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                        g_RightCardSwipeOffset += ImGui::GetIO().MouseDelta.x / ImGui::GetIO().FontGlobalScale;
+                    }
+                    // Release trigger
+                    if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                        if (g_RightCardSwipeOffset > 150.0f || g_RightCardSwipeOffset < -150.0f) {
+                            PushHistoryState(); carR.showdownWins++; carR.showdownBattles++;
+                            g_Catalog[g_ShowdownLeftIndex].showdownBattles++;
+                            g_ShowdownLeftIndex = -1; g_ShowdownRightIndex = -1; // Trigger next matchup
+                            g_UnsavedChanges = true;
+                        }
+                        g_RightCardSwipeOffset = 0.0f;
                     }
                     ImGui::EndChild();
                 } else {
-                    ImGui::Text("Deal matchup to commence versus ranking.");
+                    ImGui::Text("No models registered. Drag folder into Left Panel to start.");
                 }
                 ImGui::EndTabItem();
             }
