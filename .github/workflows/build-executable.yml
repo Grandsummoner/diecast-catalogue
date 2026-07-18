@@ -1,50 +1,37 @@
-name: Build Desktop Executables
+name: Build C++ Standalone Windows Executable
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-windows:
+    runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Setup MSVC Compiler
+        uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Install dependencies
-        run: npm install
+      - name: Configure CMake Build Target
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build application
-        run: npm run build
+      - name: Compile Standalone Executable
+        run: cmake --build build --config Release
 
-      - name: Generate standalone executables using pkg
+      - name: Confirm Executable Directory Assets
         run: |
-          mkdir -p build
-          # Compile only for Windows using node18 target, loading assets from pkg-config.json
-          npx pkg dist/server.cjs \
-            --config pkg-config.json \
-            --targets node18-win-x64 \
-            --output build/diecast-catalogue.exe
+          dir build\Release\
 
-      - name: Prepare distribution packages
-        run: |
-          cd build
-          zip diecast-catalogue-windows.zip diecast-catalogue.exe
-
-      - name: Upload Build Artifacts to Actions Page
+      - name: Upload Win64 Executable Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-executables
-          path: build/diecast-catalogue-windows.zip
-          retention-days: 7
+          name: diecast-photo-catalogue-cpp-win64
+          path: build/Release/*.exe
