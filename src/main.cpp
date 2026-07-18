@@ -1,3 +1,4 @@
+#define NOMINMAX // Prevent Windows.h from defining conflicting min/max macros
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -184,7 +185,7 @@ float calculateScore(const std::string& make, const std::string& model, int year
     std::string seed = make + model + std::to_string(year);
     size_t hashVal = std::hash<std::string>{}(seed);
     float score = 4.0f + static_cast<float>(hashVal % 55) / 10.0f;
-    return std::max(1.0f, std::min(10.0f, score));
+    return (std::max)(1.0f, (std::min)(10.0f, score));
 }
 
 void applyOfflineSpecsAndTrivia(DiecastCar& car) {
@@ -1004,7 +1005,7 @@ int main() {
                         return a.showdownWins > b.showdownWins;
                     });
 
-                    for (size_t l = 0; l < std::min(sortedCatalog.size(), size_t(5)); ++l) {
+                    for (size_t l = 0; l < (std::min)(sortedCatalog.size(), size_t(5)); ++l) {
                         if (sortedCatalog[l].showdownWins > 0) {
                             ImGui::Text("%zu. %s %s - %d Wins", l+1, sortedCatalog[l].make.c_str(), sortedCatalog[l].model.c_str(), sortedCatalog[l].showdownWins);
                         }
