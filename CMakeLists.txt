@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
 project(DiecastCatalogue CXX)
 
 set(CMAKE_CXX_STANDARD 17)
