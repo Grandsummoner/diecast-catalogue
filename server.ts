@@ -1,12 +1,13 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { exec } from "child_process";
 import fs from "fs";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
 // @ts-ignore
-import * as archiver from "archiver";
+const archiver = require("archiver");
 
 dotenv.config();
 
@@ -448,33 +449,30 @@ Return the output strictly matching the requested JSON schema with collectabilit
         parsedNuggets = JSON.parse(responseText);
       } catch (geminiError: any) {
         // Log gracefully to avoid triggering error parsers in testing environments
-        console.log(`Using matching automotive nuggets fallback for identifier: "${identifier}"`);
+        console.log(`Using matching automotive metadata fallback for identifier: "${identifier}"`);
         parsedNuggets = generateFallbackNuggets(identifier);
       }
 
       res.json(parsedNuggets);
     } catch (error: any) {
-      console.error("Error in car-nuggets:", error);
-      res.status(500).json({ error: error.message || "Failed to generate automotive nuggets." });
+      console.error("Error generating nuggets:", error);
+      res.status(500).json({ error: error.message || "Failed to analyze car nuggets." });
     }
   });
 
-  // Endpoint to chat with Gemini about a specific diecast model
+  // Custom QA Chat proxy with Gemini for deeper details
   app.post("/api/ask-gemini", async (req, res) => {
     try {
       const { filename, carName, question } = req.body;
-      if ((!filename && !carName) || !question) {
-        return res.status(400).json({ error: "Missing identity attributes (filename or carName) or question parameter." });
+      if (!question) {
+        return res.status(400).json({ error: "Question parameter is required." });
       }
 
-      const identifier = carName || filename;
-      
-      const prompt = `You are an expert automotive historian and diecast collector concierge.
-The user is asking a question about the vehicle identified by: "${identifier}".
-The question is: "${question}"
+      const identifier = carName || filename || "the diecast model";
+      const prompt = `The user is asking a question about the car model: "${identifier}".
+Question: "${question}"
 
-Formulate an engaging, knowledgeable, and detailed response strictly focusing on the 1:1 real-world vehicle, its mechanical specifications, history, racing pedigree, or design features.
-Keep your response professional, historically accurate, and passionate about automotive culture. Avoid toy casting specifics unless asked. Make sure the response is formatted cleanly.`;
+Provide an engaging, informative answer from the perspective of an ultimate car enthusiast and collector. Limit response to around 150-200 words.`;
 
       let answerText = "";
       try {
@@ -504,6 +502,8 @@ Keep your response professional, historically accurate, and passionate about aut
 
   // Setup Vite Dev Server Middleware or serve static files in production
   if (process.env.NODE_ENV !== "production") {
+    const viteModule = "vite";
+    const { createServer: createViteServer } = await import(viteModule);
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -525,8 +525,20 @@ Keep your response professional, historically accurate, and passionate about aut
     // Automatically open browser if running as a local standalone desktop app
     if (process.env.NODE_ENV === "production" && !process.env.K_SERVICE && !process.env.RENDER) {
       const url = `http://localhost:${PORT}`;
-      const start = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
-      exec(`${start} ${url}`);
+      try {
+        if (process.platform === "win32") {
+          exec(`start ${url}`, { shell: "cmd.exe" }, (err) => {
+            if (err) console.error("Failed to open browser on Windows:", err);
+          });
+        } else {
+          const start = process.platform === "darwin" ? "open" : "xdg-open";
+          exec(`${start} ${url}`, (err) => {
+            if (err) console.error(`Failed to open browser on ${process.platform}:`, err);
+          });
+        }
+      } catch (e) {
+        console.error("Error attempting to open browser:", e);
+      }
     }
   });
 }
