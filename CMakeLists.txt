@@ -64,6 +64,8 @@ set(IMGUI_SRC
 
 add_executable(DiecastCatalogue
     src/main.cpp
+    src/core/utils.cpp
+    src/core/theme.cpp
     ${IMGUI_SRC}
 )
 
@@ -73,6 +75,7 @@ target_include_directories(DiecastCatalogue PRIVATE
     ${json_SOURCE_DIR}/single_include
     ${miniz_SOURCE_DIR}
     ${stb_SOURCE_DIR}
+    src/core
 )
 
 target_link_libraries(DiecastCatalogue PRIVATE
