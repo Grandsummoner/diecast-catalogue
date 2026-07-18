@@ -54,6 +54,7 @@ bool g_ShowExitPrompt = false;
 
 char g_SearchInput[128] = "";
 char g_ApiKeyInput[128] = "";
+char g_CollectionName[128] = "My Diecast Collection";
 char g_ChatInput[256] = "";
 char g_CuratorNotes[512] = "No curator remarks entered yet.";
 std::vector<std::pair<std::string, std::string>> g_ChatLog;
@@ -213,15 +214,18 @@ void ExecuteRedo() {
 bool exportWorkspace(const std::string& zipPath) {
     mz_zip_archive zip; memset(&zip, 0, sizeof(zip));
     if (!mz_zip_writer_init_file(&zip, zipPath.c_str(), 0)) return false;
-    json catalogJson = json::array();
+    json catalogJson;
+    catalogJson["collection_name"] = g_CollectionName;
+    json carsList = json::array();
     for (const auto& car : g_Catalog) {
         json item = {
             {"filename", car.filename}, {"folderPath", car.folderPath}, {"year", car.year},
             {"make", car.make}, {"model", car.model}, {"scale", car.scale}, {"condition", car.condition},
             {"favorite", car.favorite}, {"score", car.collectabilityScore}, {"wins", car.showdownWins}, {"battles", car.showdownBattles}
         };
-        catalogJson.push_back(item);
+        carsList.push_back(item);
     }
+    catalogJson["cars"] = carsList;
     std::string s = catalogJson.dump(2);
     mz_zip_writer_add_mem(&zip, "catalog.json", s.c_str(), s.size(), MZ_DEFAULT_COMPRESSION);
     std::string readme = "My Collection - Standalone C++ Workspace Database\n";
@@ -229,6 +233,64 @@ bool exportWorkspace(const std::string& zipPath) {
     mz_zip_writer_finalize_archive(&zip); mz_zip_writer_end(&zip);
     g_UnsavedChanges = false;
     return true;
+}
+
+bool importWorkspace(const std::string& zipPath) {
+    mz_zip_archive zip; memset(&zip, 0, sizeof(zip));
+    if (!mz_zip_reader_init_file(&zip, zipPath.c_str(), 0)) return false;
+    size_t fileLen = 0;
+    char* fileData = (char*)mz_zip_reader_extract_file_to_heap(&zip, "catalog.json", &fileLen, 0);
+    if (!fileData) { mz_zip_reader_end(&zip); return false; }
+    try {
+        std::string jsonStr(fileData, fileLen); mz_free(fileData);
+        auto j = json::parse(jsonStr);
+        g_Catalog.clear();
+        if (j.is_object()) {
+            if (j.contains("collection_name")) {
+                std::string name = j["collection_name"].get<std::string>();
+                strcpy_s(g_CollectionName, name.c_str());
+            }
+            auto list = j["cars"];
+            for (const auto& item : list) {
+                DiecastCar car;
+                car.filename = item.value("filename", "");
+                car.folderPath = item.value("folderPath", "");
+                car.year = item.value("year", 1990);
+                car.make = item.value("make", "Classic");
+                car.model = item.value("model", "Model");
+                car.scale = item.value("scale", "1:64");
+                car.condition = item.value("condition", "Mint");
+                car.favorite = item.value("favorite", false);
+                car.showdownWins = item.value("wins", 0);
+                car.showdownBattles = item.value("battles", 0);
+                applyOfflineSpecsAndTrivia(car);
+                g_Catalog.push_back(car);
+            }
+        } else if (j.is_array()) {
+            for (const auto& item : j) {
+                DiecastCar car;
+                car.filename = item.value("filename", "");
+                car.folderPath = item.value("folderPath", "");
+                car.year = item.value("year", 1990);
+                car.make = item.value("make", "Classic");
+                car.model = item.value("model", "Model");
+                car.scale = item.value("scale", "1:64");
+                car.condition = item.value("condition", "Mint");
+                car.favorite = item.value("favorite", false);
+                car.showdownWins = item.value("wins", 0);
+                car.showdownBattles = item.value("battles", 0);
+                applyOfflineSpecsAndTrivia(car);
+                g_Catalog.push_back(car);
+            }
+        }
+        mz_zip_reader_end(&zip);
+        g_SelectedCarIndex = g_Catalog.empty() ? -1 : 0;
+        return true;
+    } catch (...) {
+        if (fileData) mz_free(fileData);
+        mz_zip_reader_end(&zip);
+    }
+    return false;
 }
 
 // Directory drop scanners

@@ -30,8 +30,9 @@ void PushHistoryState();
 void ExecuteUndo();
 void ExecuteRedo();
 
-// Workspace miniz file exporters
+// Workspace miniz file exporters/importers
 bool exportWorkspace(const std::string& zipPath);
+bool importWorkspace(const std::string& zipPath);
 
 // Drag-and-drop directory scanning triggers
 void scanAndQueuePath(const std::string& path);

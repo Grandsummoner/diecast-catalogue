@@ -50,6 +50,7 @@ extern bool g_UnsavedChanges;
 extern Theme g_ActiveTheme;
 extern char g_SearchInput[128];
 extern char g_ApiKeyInput[128];
+extern char g_CollectionName[128]; // User-editable collection name
 
 extern std::map<std::string, GLuint> g_TextureCache;
 extern int g_ActiveTextureWidth;
