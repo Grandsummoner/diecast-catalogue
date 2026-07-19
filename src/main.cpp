@@ -2,7 +2,7 @@
 #include "utils.hpp"
 #include "theme.hpp"
 
-#include <algorithm> // Essential to resolve std::sort and std::transform errors
+#include <algorithm> // Critical: Resolves std::sort and std::transform errors
 #include <ctime>
 #include <cstdlib>
 #include <filesystem> // Essential to resolve filesystem operations
@@ -61,7 +61,6 @@ int main() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ApplyTheme(g_ActiveTheme);
-    ApplyImageTwoPalette(g_ActiveTheme);
 
     ImGuiIO& io = ImGui::GetIO();
     // System Font Loader: Use Comic Sans MS throughout the visual elements
@@ -162,7 +161,6 @@ int main() {
         ImGui::SetNextItemWidth(130);
         if (ImGui::Combo("Theme", (int*)&g_ActiveTheme, "Blue\0Green\0Purple\0Gray\0Orange\0Red\0Pink\0Yellow\0")) {
             ApplyTheme(g_ActiveTheme);
-            ApplyImageTwoPalette(g_ActiveTheme);
         }
 
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
@@ -415,7 +413,7 @@ int main() {
                     ImGui::Text("%d %s", g_Catalog[pc.carIndex].year, g_Catalog[pc.carIndex].make.c_str());
                     std::string shortModel = g_Catalog[pc.carIndex].model;
                     if (shortModel.length() > 14) shortModel = shortModel.substr(0, 12) + "..";
-                    ImGui::TextDisabled("%s", shortModel.c_str());
+                    ImGui::TextWrapped("%s", shortModel.c_str());
                     ImGui::TextDisabled("Scale: %s", g_Catalog[pc.carIndex].scale.c_str());
 
                     ImGui::EndChild();
@@ -535,8 +533,6 @@ int main() {
             ImGui::EndTabBar();
         }
         ImGui::EndChild();
-
-        ImGui::SameLine();
 
         // -------------------------------------------------------------
         // PANEL 3: RIGHT PANEL — RICH TEXT & CHATBOT (30% Width)
