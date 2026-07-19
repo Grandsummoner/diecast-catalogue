@@ -13,6 +13,7 @@
 #include "nlohmann/json.hpp"
 #include "miniz.h"
 
+// Define OpenGL 1.2 constant if missing from Win32 headers
 #ifndef GL_CLAMP_TO_EDGE
 #define GL_CLAMP_TO_EDGE 0x812F
 #endif
@@ -71,10 +72,7 @@ std::wstring toWString(const std::string& str) {
     return wstr;
 }
 
-// -------------------------------------------------------------
-// NATIVE WIN32 EXPLORER FILE & DIRECTORY COMMON FILE DIALOGS
-// -------------------------------------------------------------
-
+// Windows Wide-Character Folder/File select dialogs
 std::vector<std::string> openFileDialog() {
     std::vector<std::string> paths;
     HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
@@ -144,10 +142,7 @@ std::string openFolderDialog() {
     return path;
 }
 
-// -------------------------------------------------------------
-// SECURE WORKSPACE TEXTURE LOADER (Windows Wide-String UTF-8 Fix)
-// -------------------------------------------------------------
-
+// Windows Wide-Character Texture Loader utilizing stb_image
 GLuint GetOrCreateTexture(const std::string& path) {
     if (path.empty()) return 0;
     auto it = g_TextureCache.find(path);
@@ -185,6 +180,7 @@ GLuint GetOrCreateTexture(const std::string& path) {
     return 0;
 }
 
+// WinHTTP POST / GET Request wrapper
 std::string makeHttpsRequest(const std::string& verb, const std::string& host, const std::string& path, const std::string& payload) {
     std::string response;
     HINTERNET hSession = WinHttpOpen(L"DiecastCatalogue/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
@@ -238,7 +234,7 @@ float calculateScore(const std::string& make, const std::string& model, int year
 void applyOfflineSpecsAndTrivia(DiecastCar& car) {
     car.collectabilityScore = calculateScore(car.make, car.model, car.year);
     
-    // Normalise name: e.g. "Nissan Skyline GT-R"
+    // Normalize and URL encode query string (e.g. "Nissan Silvia" or "Mazda CX-60")
     std::string query = car.make + " " + car.model;
     std::string encodedQuery = urlEncode(query);
     bool onlineSuccess = false;
@@ -330,7 +326,7 @@ void parseCarInfo(const std::string& filename, DiecastCar& outCar) {
     outCar.color = "Paint"; outCar.displayName = clean;
 }
 
-// Undo/Redo operations
+// Undo/Redo Engine
 void PushHistoryState() {
     HistoryState state; state.catalog = g_Catalog; state.selectedCarIndex = g_SelectedCarIndex;
     g_UndoStack.push_back(state);
@@ -504,7 +500,20 @@ void glfw_drop_callback(GLFWwindow* window, int count, const char** paths) {
     if (!g_PendingImportPaths.empty()) g_ShowUploadConfirmPrompt = true;
 }
 
-// Gemini bot proxy
+// Play loop notification soundscapes capped to exactly 15% of standard system volume
+void TriggerLoopAudioEffect() {
+    waveOutSetVolume(NULL, 0x26662666); // Cap volume to 15% (0x2666 left/right channels)
+    if (g_ActiveSoundscape == 1) {
+        PlaySound(TEXT("SystemNotification"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
+    } else if (g_ActiveSoundscape == 2) {
+        PlaySound(TEXT("SystemHand"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
+    } else if (g_ActiveSoundscape == 3) {
+        PlaySound(TEXT("SystemDefault"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
+    } else {
+        PlaySound(NULL, NULL, 0); // Stop loop audio thread
+    }
+}
+
 std::string getGeminiChatResponse(const std::string& question, const DiecastCar& car) {
     std::string key = g_ApiKeyInput; std::string carDesc = car.make + " " + car.model;
     if (key.empty()) {
