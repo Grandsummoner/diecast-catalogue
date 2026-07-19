@@ -61,7 +61,6 @@ int main() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ApplyTheme(g_ActiveTheme);
-    ApplyImageTwoPalette(g_ActiveTheme);
 
     ImGuiIO& io = ImGui::GetIO();
     // System Font Loader: Use Comic Sans MS throughout the visual elements
@@ -162,7 +161,6 @@ int main() {
         ImGui::SetNextItemWidth(130);
         if (ImGui::Combo("Theme", (int*)&g_ActiveTheme, "Blue\0Green\0Purple\0Gray\0Orange\0Red\0Pink\0Yellow\0")) {
             ApplyTheme(g_ActiveTheme);
-            ApplyImageTwoPalette(g_ActiveTheme);
         }
 
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
@@ -536,7 +534,6 @@ int main() {
         }
         ImGui::EndChild();
 
-        // ImGui SameLine spacing binds Middle and Right Panels horizontally
         ImGui::SameLine();
 
         // -------------------------------------------------------------
@@ -598,10 +595,10 @@ int main() {
                     ImGui::TextWrapped("Your collection profile is currently empty. Drop file folders to analyze your curator badge.");
                 } else if (jdmCount > muscleCount) {
                     ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "🏆 Archetype Badge: [ JDM Specialist ]");
-                    ImGui::TextWrapped("Your collection displays affinity for Japanese domestic engineering and street-tuner design.");
+                    ImGui::TextWrapped("Your collection displays high fidelity affinity for Japanese domestic engineering and street-tuner design.");
                 } else if (muscleCount > jdmCount) {
                     ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "🏆 Archetype Badge: [ Muscle Classicist ]");
-                    ImGui::TextWrapped("Your collection displays affinity for standard American high-displacement V8 drag-strip pedigree.");
+                    ImGui::TextWrapped("Your collection displays high fidelity affinity for standard American high-displacement V8 drag-strip pedigree.");
                 } else {
                     ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.4f, 1.0f), "🏆 Archetype Badge: [ Balanced Curator ]");
                     ImGui::TextWrapped("Your collection displays highly versatile focus across multiple mechanical layouts and classes.");
