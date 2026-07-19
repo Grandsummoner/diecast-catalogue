@@ -23,7 +23,7 @@ namespace fs = std::filesystem;
 std::vector<DiecastCar> g_Catalog;
 int g_SelectedCarIndex = -1;
 bool g_UnsavedChanges = false;
-Theme g_ActiveTheme = THEME_LIGHT;
+Theme g_ActiveTheme = THEME_BLUE; // Default: Neumorphic trust Blue
 
 std::map<std::string, GLuint> g_TextureCache;
 int g_ActiveTextureWidth = 0;
@@ -50,7 +50,7 @@ int g_ActiveSoundscape = 0;
 const char* g_SoundscapeNames[] = { "Soundscape: Off", "Soundscape: Rain", "Soundscape: V8 Idle", "Soundscape: Jazz Cafe" };
 
 std::vector<std::string> g_PendingImportPaths;
-bool g_ShowImportConfirmPrompt = false;
+bool g_ShowUploadConfirmPrompt = false; // Scrubbed "ingest"
 bool g_ShowExitPrompt = false;
 
 char g_SearchInput[128] = "";
@@ -60,8 +60,8 @@ char g_ChatInput[256] = "";
 char g_CuratorNotes[512] = "No curator remarks entered yet.";
 std::vector<std::pair<std::string, std::string>> g_ChatLog;
 int g_StarredCount = 0;
+float g_GlobalScale = 1.30f; // Ctrl + Scroll Wheel Zoom factor
 
-// UTF-8 to UTF-16 Wide-String Converter
 std::wstring toWString(const std::string& str) {
     if (str.empty()) return L"";
     int size = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
@@ -70,7 +70,6 @@ std::wstring toWString(const std::string& str) {
     return wstr;
 }
 
-// Windows Wide-Character Texture Loader utilizing stb_image
 GLuint GetOrCreateTexture(const std::string& path) {
     if (path.empty()) return 0;
     auto it = g_TextureCache.find(path);
@@ -108,7 +107,7 @@ GLuint GetOrCreateTexture(const std::string& path) {
     return 0;
 }
 
-// WinHTTP POST / GET Request wrapper
+// WinHTTP Secure client supporting both GET and POST
 std::string makeHttpsRequest(const std::string& verb, const std::string& host, const std::string& path, const std::string& payload) {
     std::string response;
     HINTERNET hSession = WinHttpOpen(L"DiecastCatalogue/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
@@ -134,7 +133,6 @@ std::string makeHttpsRequest(const std::string& verb, const std::string& host, c
     return response;
 }
 
-// Offline spec generators
 float calculateScore(const std::string& make, const std::string& model, int year) {
     std::string seed = make + model + std::to_string(year);
     size_t hashVal = std::hash<std::string>{}(seed);
@@ -144,7 +142,7 @@ float calculateScore(const std::string& make, const std::string& model, int year
 void applyOfflineSpecsAndTrivia(DiecastCar& car) {
     car.collectabilityScore = calculateScore(car.make, car.model, car.year);
     
-    // Normalize and URL encode query string (e.g. "Nissan Silvia" or "Mazda CX-60")
+    // Keyless public DuckDuckGo abstract search logic (No API Keys, No Wikipedia!)
     std::string query = car.make + " " + car.model;
     std::string encoded = "";
     for (char c : query) {
@@ -152,7 +150,6 @@ void applyOfflineSpecsAndTrivia(DiecastCar& car) {
         else encoded += c;
     }
 
-    // Dynamic, keyless public DuckDuckGo instant abstract fetch
     std::string rawRes = makeHttpsRequest("GET", "api.duckduckgo.com", "/?q=" + encoded + "&format=json&no_html=1", "");
     bool onlineSuccess = false;
     try {
@@ -165,7 +162,7 @@ void applyOfflineSpecsAndTrivia(DiecastCar& car) {
         }
     } catch (...) {}
 
-    // Fallback/Default local specs if online fetch was empty
+    // Dynamic offline historical fallback if search has no return or offline
     if (!onlineSuccess) {
         std::string modelLower = car.model;
         std::transform(modelLower.begin(), modelLower.end(), modelLower.begin(), ::tolower);
@@ -226,7 +223,6 @@ void parseCarInfo(const std::string& filename, DiecastCar& outCar) {
     outCar.color = "Paint"; outCar.displayName = clean;
 }
 
-// State Machine
 void PushHistoryState() {
     HistoryState state; state.catalog = g_Catalog; state.selectedCarIndex = g_SelectedCarIndex;
     g_UndoStack.push_back(state);
@@ -372,7 +368,7 @@ void glfw_window_close_callback(GLFWwindow* window) {
 void glfw_drop_callback(GLFWwindow* window, int count, const char** paths) {
     g_PendingImportPaths.clear();
     for (int i = 0; i < count; ++i) scanAndQueuePath(paths[i]);
-    if (!g_PendingImportPaths.empty()) g_ShowImportConfirmPrompt = true;
+    if (!g_PendingImportPaths.empty()) g_ShowUploadConfirmPrompt = true;
 }
 
 std::string getGeminiChatResponse(const std::string& question, const DiecastCar& car) {

@@ -41,7 +41,17 @@ struct PolaroidCard {
     bool initialized = false;
 };
 
-enum Theme { THEME_LIGHT, THEME_NAVY, THEME_BEIGE };
+// Unified color scheme bindings derived from Image 2
+enum Theme { 
+    THEME_BLUE, 
+    THEME_GREEN, 
+    THEME_PURPLE, 
+    THEME_GRAY, 
+    THEME_ORANGE, 
+    THEME_RED, 
+    THEME_PINK, 
+    THEME_YELLOW 
+};
 
 // Extern global state declarations to ensure proper compilation linkage
 extern std::vector<DiecastCar> g_Catalog;
@@ -67,6 +77,7 @@ extern float g_GachaInterval;
 extern float g_GachaDuration;
 
 extern std::vector<PolaroidCard> g_PolaroidCards;
+extern int g_DraggedPolaroidIndex; // Click-Lock Drag State tracker
 
 extern int g_ShowdownLeftIndex;
 extern int g_ShowdownRightIndex;
@@ -76,10 +87,12 @@ extern int g_ActiveSoundscape;
 extern const char* g_SoundscapeNames[];
 
 extern std::vector<std::string> g_PendingImportPaths;
-extern bool g_ShowImportConfirmPrompt;
+extern bool g_ShowUploadConfirmPrompt; // Scrubbed "ingest"
 extern bool g_ShowExitPrompt;
 
 extern char g_ChatInput[256];
 extern char g_CuratorNotes[512];
 extern std::vector<std::pair<std::string, std::string>> g_ChatLog;
 extern int g_StarredCount;
+
+extern float g_GlobalScale; // Ctrl + Scroll Wheel Zoom factor
