@@ -107,6 +107,16 @@ int main() {
             g_UnsavedChanges = true;
         }
 
+        // Handle basic keyboard shortcuts: Arrow keys to page forward and back
+        if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow) && !g_Catalog.empty()) {
+            g_SelectedCarIndex = (g_SelectedCarIndex - 1 + g_Catalog.size()) % g_Catalog.size();
+            g_ChatLog.clear();
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_RightArrow) && !g_Catalog.empty()) {
+            g_SelectedCarIndex = (g_SelectedCarIndex + 1) % g_Catalog.size();
+            g_ChatLog.clear();
+        }
+
         ImGui_ImplOpenGL3_NewFrame(); ImGui_ImplGlfw_NewFrame(); ImGui::NewFrame();
 
         int width, height;
@@ -136,7 +146,7 @@ int main() {
         ImGui::TextDisabled("|"); ImGui::SameLine();
         if (ImGui::Button("Gacha Spin")) {
             if (!g_GachaRolling && !g_Catalog.empty()) {
-                g_GachaRolling = true; g_GachaTimer = 0.0f; g_GachaInterval = 0.05f; g_GachaDuration = 0.0f;
+                g_GachaRolling = true; g_GachaTimer = 0.0f; g_GachaInterval = 0.02f; g_GachaDuration = 0.0f; // Fast spin
             }
         }
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
@@ -144,19 +154,6 @@ int main() {
         if (ImGui::Button("Toggle Ambient")) {
             g_ActiveSoundscape = (g_ActiveSoundscape + 1) % 4;
             TriggerLoopAudioEffect();
-        }
-        ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
-        
-        // Dynamic Zoom Control Buttons (Size 2 bigger text constraint backup)
-        if (ImGui::Button("-")) {
-            g_GlobalScale = (std::max)(0.8f, g_GlobalScale - 0.10f);
-            ScaleStyleAndFont(g_GlobalScale);
-        }
-        ImGui::SameLine();
-        ImGui::Text("Zoom: %.0f%%", g_GlobalScale * 100.0f); ImGui::SameLine();
-        if (ImGui::Button("+")) {
-            g_GlobalScale = (std::min)(2.0f, g_GlobalScale + 0.10f);
-            ScaleStyleAndFont(g_GlobalScale);
         }
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
 
@@ -274,11 +271,10 @@ int main() {
         ImGui::Button("Re-link root directory");
         ImGui::EndChild();
 
-        ImGui::SameLine();
-
         // -------------------------------------------------------------
         // PANEL 2: MIDDLE PANEL — PRESENTATION STAGE (50% Width)
         // -------------------------------------------------------------
+        ImGui::SameLine();
         ImGui::BeginChild("MiddlePanel", ImVec2(middlePanelWidth - 10.0f, bodyHeight), true);
         if (ImGui::BeginTabBar("DisplayStageTabs")) {
             if (ImGui::BeginTabItem("Showcase View")) {
@@ -344,16 +340,21 @@ int main() {
                 ImGui::EndTabItem();
             }
 
-            // MODE 2: TACTILE POLAROID SCATTER (Virtual Shoebox with Large Cards & Draggable Mouse Controls)
+            // MODE 2: TACTILE POLAROID SCATTER (Virtual Shoebox with Draggable Mouse Controls)
             if (ImGui::BeginTabItem("Polaroid Scatter")) {
                 ImGui::Text("Tabletop Desk - Drag and organize your collection scatter cards!");
                 
-                // Initialize card offsets automatically when loaded
+                float scatterWidth = middlePanelWidth - 30.0f;
+                float scatterHeight = bodyHeight - 120.0f;
+
+                // Initialize card offsets automatically and disperse across ENTIRE space (no clustering)
                 if (g_PolaroidCards.empty() && !g_Catalog.empty()) {
                     g_PolaroidCards.clear();
                     for (int i = 0; i < (int)g_Catalog.size(); ++i) {
                         PolaroidCard pc; pc.carIndex = i;
-                        pc.position = ImVec2(30.0f + (std::rand() % 200), 50.0f + (std::rand() % 120));
+                        float maxX = scatterWidth - 180.0f;
+                        float maxY = scatterHeight - 200.0f;
+                        pc.position = ImVec2(20.0f + (std::rand() % (int)(std::max)(10.0f, maxX)), 20.0f + (std::rand() % (int)(std::max)(10.0f, maxY)));
                         pc.initialized = true;
                         g_PolaroidCards.push_back(pc);
                     }
@@ -362,7 +363,9 @@ int main() {
                     g_PolaroidCards.clear();
                     for (int i = 0; i < (int)g_Catalog.size(); ++i) {
                         PolaroidCard pc; pc.carIndex = i;
-                        pc.position = ImVec2(30.0f + (std::rand() % 300), 50.0f + (std::rand() % 200));
+                        float maxX = scatterWidth - 180.0f;
+                        float maxY = scatterHeight - 200.0f;
+                        pc.position = ImVec2(20.0f + (std::rand() % (int)(std::max)(10.0f, maxX)), 20.0f + (std::rand() % (int)(std::max)(10.0f, maxY)));
                         pc.initialized = true;
                         g_PolaroidCards.push_back(pc);
                     }
@@ -371,9 +374,9 @@ int main() {
                 ImGui::Separator();
                 ImVec2 scatterCursor = ImGui::GetCursorScreenPos();
                 ImDrawList* dlist = ImGui::GetWindowDrawList();
-                dlist->AddRectFilled(scatterCursor, ImVec2(scatterCursor.x + middlePanelWidth - 30.0f, scatterCursor.y + bodyHeight - 120.0f), IM_COL32(10, 14, 20, 255));
+                dlist->AddRectFilled(scatterCursor, ImVec2(scatterCursor.x + scatterWidth, scatterCursor.y + scatterHeight), IM_COL32(10, 14, 20, 255));
 
-                ImGui::BeginChild("ScatterStage", ImVec2(0, bodyHeight - 120.0f), false, ImGuiWindowFlags_NoScrollbar);
+                ImGui::BeginChild("ScatterStage", ImVec2(0, scatterHeight), false, ImGuiWindowFlags_NoScrollbar);
                 
                 int hoveredIndex = -1;
                 for (size_t i = 0; i < g_PolaroidCards.size(); ++i) {
@@ -385,7 +388,7 @@ int main() {
                     }
                 }
 
-                // Global dragging offset hook checks to resolve "iffy" dragging
+                // Click-Lock Drag State Trackers
                 if (ImGui::IsMouseClicked(0) && hoveredIndex != -1) {
                     g_DraggedPolaroidIndex = hoveredIndex;
                 }
@@ -404,7 +407,6 @@ int main() {
                     ImGui::SetCursorPos(pc.position);
                     ImGui::PushID(static_cast<int>(i));
 
-                    // Draggable card element structured like a physical Polaroid (Large size constraint)
                     ImGui::BeginChild((std::string("CardWin##") + std::to_string(i)).c_str(), ImVec2(165, 185), true, ImGuiWindowFlags_NoScrollbar);
                     GLuint tex = GetOrCreateTexture(g_Catalog[pc.carIndex].folderPath);
                     if (tex != 0) {
@@ -426,111 +428,125 @@ int main() {
                 ImGui::EndTabItem();
             }
 
-            // MODE 3: FACE-OFF CHALLENGE (Tinder-style dragging swipes with Proportional rendering)
+            // MODE 3: FACEOFF CHALLENGE (Tinder-style select side-by-side)
             if (ImGui::BeginTabItem("Faceoff")) {
-                ImGui::Text("Tinder Face-off Arena! Drag/swipe either card horizontally to vote.");
                 if ((g_ShowdownLeftIndex == -1 || g_ShowdownRightIndex == -1) && g_Catalog.size() >= 2) {
                     g_ShowdownLeftIndex = std::rand() % g_Catalog.size(); g_ShowdownRightIndex = std::rand() % g_Catalog.size();
                     while (g_ShowdownLeftIndex == g_ShowdownRightIndex) g_ShowdownRightIndex = std::rand() % g_Catalog.size();
-                    g_LeftCardSwipeOffset = 0.0f; g_RightCardSwipeOffset = 0.0f;
+                    g_ActiveQuestionIndex = std::rand() % 5;
                     g_ShowdownActive = true;
                 }
 
                 if (g_ShowdownActive && g_ShowdownLeftIndex != -1 && g_ShowdownRightIndex != -1) {
+                    // Render Question at top in Bold Blue
+                    ImGui::TextColored(ImVec4(0.30f, 0.48f, 1.00f, 1.00f), "Challenge Question: %s", g_FaceoffQuestions[g_ActiveQuestionIndex]);
                     ImGui::Separator();
-                    float halfCardWidth = (middlePanelWidth / 2.0f) - 20.0f;
 
-                    // Tinder Left Card: Left-click and Drag horizontally to Swipe Away / Vote!
-                    ImGui::SetCursorPosX(10.0f + g_LeftCardSwipeOffset);
-                    ImGui::BeginChild("LeftShowdownCard", ImVec2(halfCardWidth, 240), true);
+                    float halfCardWidth = (middlePanelWidth / 2.0f) - 20.0f;
+                    float cardHeight = halfCardWidth * (9.0f / 16.0f) + 80.0f;
+
+                    // Tinder Left Card (Click to Select)
+                    ImGui::PushID("LCard");
+                    ImGui::BeginChild("LeftShowdownCard", ImVec2(halfCardWidth, cardHeight), true);
                     auto& carL = g_Catalog[g_ShowdownLeftIndex];
                     ImGui::Text("%d %s", carL.year, carL.make.c_str()); ImGui::TextWrapped("%s", carL.model.c_str());
                     
                     GLuint texL = GetOrCreateTexture(carL.folderPath);
                     if (texL != 0) {
-                        float canvasWidth = halfCardWidth - 20.0f;
-                        float canvasHeight = 100.0f;
-                        float imgAspect = (float)g_ActiveTextureWidth / (float)g_ActiveTextureHeight;
-                        float canvasAspect = canvasWidth / canvasHeight;
-                        ImVec2 displaySize;
-                        if (imgAspect > canvasAspect) {
-                            displaySize.x = canvasWidth;
-                            displaySize.y = canvasWidth / imgAspect;
-                        } else {
-                            displaySize.y = canvasHeight;
-                            displaySize.x = canvasHeight * imgAspect;
-                        }
-                        ImGui::Image((void*)(intptr_t)texL, displaySize);
+                        ImGui::Image((void*)(intptr_t)texL, ImVec2(halfCardWidth - 20.0f, (halfCardWidth - 20.0f) * 9.0f / 16.0f));
                     } else {
-                        ImGui::Text("   🚗   ");
+                        ImGui::Text("   No Photo   ");
                     }
-                    ImGui::Text("Wins: %d", carL.showdownWins);
-
-                    // Track drag swipe offset
-                    if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-                        g_LeftCardSwipeOffset += ImGui::GetIO().MouseDelta.x / ImGui::GetIO().FontGlobalScale;
-                    }
-                    // Release trigger
-                    if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-                        if (g_LeftCardSwipeOffset > 150.0f || g_LeftCardSwipeOffset < -150.0f) {
-                            PushHistoryState(); carL.showdownWins++; carL.showdownBattles++;
-                            g_Catalog[g_ShowdownRightIndex].showdownBattles++;
-                            g_ShowdownLeftIndex = -1; g_ShowdownRightIndex = -1; // Trigger next matchup
-                            g_UnsavedChanges = true;
-                        }
-                        g_LeftCardSwipeOffset = 0.0f;
+                    
+                    if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(0)) {
+                        PushHistoryState(); carL.showdownWins++; carL.showdownBattles++;
+                        g_Catalog[g_ShowdownRightIndex].showdownBattles++;
+                        g_FaceoffFlashTimer = 0.5f; // Trigger flash transition
+                        g_ShowdownLeftIndex = -1; g_ShowdownRightIndex = -1; // Next matchups
+                        g_UnsavedChanges = true;
                     }
                     ImGui::EndChild();
+                    ImGui::PopID();
 
                     ImGui::SameLine();
                     ImGui::AlignTextToFramePadding();
                     ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.0f), " ⚔ ");
                     ImGui::SameLine();
 
-                    // Tinder Right Card: Left-click and Drag horizontally to Swipe Away / Vote!
-                    ImGui::SetCursorPosX((middlePanelWidth / 2.0f) + 10.0f + g_RightCardSwipeOffset);
-                    ImGui::BeginChild("RightShowdownCard", ImVec2(halfCardWidth, 240), true);
+                    // Tinder Right Card (Click to Select)
+                    ImGui::PushID("RCard");
+                    ImGui::BeginChild("RightShowdownCard", ImVec2(halfCardWidth, cardHeight), true);
                     auto& carR = g_Catalog[g_ShowdownRightIndex];
                     ImGui::Text("%d %s", carR.year, carR.make.c_str()); ImGui::TextWrapped("%s", carR.model.c_str());
                     
                     GLuint texR = GetOrCreateTexture(carR.folderPath);
                     if (texR != 0) {
-                        float canvasWidth = halfCardWidth - 20.0f;
-                        float canvasHeight = 100.0f;
-                        float imgAspect = (float)g_ActiveTextureWidth / (float)g_ActiveTextureHeight;
-                        float canvasAspect = canvasWidth / canvasHeight;
-                        ImVec2 displaySize;
-                        if (imgAspect > canvasAspect) {
-                            displaySize.x = canvasWidth;
-                            displaySize.y = canvasWidth / imgAspect;
-                        } else {
-                            displaySize.y = canvasHeight;
-                            displaySize.x = canvasHeight * imgAspect;
-                        }
-                        ImGui::Image((void*)(intptr_t)texR, displaySize);
+                        ImGui::Image((void*)(intptr_t)texR, ImVec2(halfCardWidth - 20.0f, (halfCardWidth - 20.0f) * 9.0f / 16.0f));
                     } else {
-                        ImGui::Text("   🚗   ");
+                        ImGui::Text("   No Photo   ");
                     }
-                    ImGui::Text("Wins: %d", carR.showdownWins);
 
-                    // Track drag swipe offset
-                    if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-                        g_RightCardSwipeOffset += ImGui::GetIO().MouseDelta.x / ImGui::GetIO().FontGlobalScale;
-                    }
-                    // Release trigger
-                    if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-                        if (g_RightCardSwipeOffset > 150.0f || g_RightCardSwipeOffset < -150.0f) {
-                            PushHistoryState(); carR.showdownWins++; carR.showdownBattles++;
-                            g_Catalog[g_ShowdownLeftIndex].showdownBattles++;
-                            g_ShowdownLeftIndex = -1; g_ShowdownRightIndex = -1; // Trigger next matchup
-                            g_UnsavedChanges = true;
-                        }
-                        g_RightCardSwipeOffset = 0.0f;
+                    if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(0)) {
+                        PushHistoryState(); carR.showdownWins++; carR.showdownBattles++;
+                        g_Catalog[g_ShowdownLeftIndex].showdownBattles++;
+                        g_FaceoffFlashTimer = 0.5f; // Trigger flash transition
+                        g_ShowdownLeftIndex = -1; g_ShowdownRightIndex = -1; // Next matchups
+                        g_UnsavedChanges = true;
                     }
                     ImGui::EndChild();
+                    ImGui::PopID();
+
+                    ImGui::Spacing();
+                    if (ImGui::Button("End Session", ImVec2(-1, 35))) {
+                        g_ShowdownActive = false;
+                    }
                 } else {
-                    ImGui::Text("No models registered. Drag folder into Left Panel to start.");
+                    // Show Curated Results / Collector Characteristics!
+                    ImGui::TextColored(ImVec4(0.30f, 0.48f, 1.00f, 1.00f), "🏆 Curation Analysis:");
+                    ImGui::Separator();
+                    int totalWins = 0, vintageWins = 0, jdmWins = 0, muscleWins = 0;
+                    for (const auto& item : g_Catalog) {
+                        if (item.showdownWins > 0) {
+                            totalWins += item.showdownWins;
+                            if (item.year < 1980) vintageWins += item.showdownWins;
+                            std::string m = item.make; std::transform(m.begin(), m.end(), m.begin(), ::tolower);
+                            if (m.find("nissan") != std::string::npos || m.find("toyota") != std::string::npos) jdmWins += item.showdownWins;
+                            else if (m.find("ford") != std::string::npos || m.find("chev") != std::string::npos) muscleWins += item.showdownWins;
+                        }
+                    }
+                    ImGui::BeginChild("HobbyCuratorResults", ImVec2(0, 160), true);
+                    if (totalWins == 0) {
+                        ImGui::Text("No matchups completed. Click cards in Faceoff to analyze your profile.");
+                    } else {
+                        ImGui::Text("You have cast %d showdown votes.", totalWins);
+                        if (vintageWins > totalWins / 2) {
+                            ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.10f, 1.0f), "⭐ Collector Character: [ Vintage Preserver ]");
+                            ImGui::TextWrapped("You display a strong leaning toward historic, golden-era automotive engineering and vintage catalog heritage.");
+                        } else if (jdmWins > muscleWins) {
+                            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "⭐ Collector Character: [ JDM Tuner ]");
+                            ImGui::TextWrapped("You prioritize high-tech Japanese performance, drift culture, and modular chassis configurations.");
+                        } else {
+                            ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.4f, 1.0f), "⭐ Collector Character: [ Balanced Enthusiast ]");
+                            ImGui::TextWrapped("You appreciate a wide range of vehicles, maintaining a versatile showcase across different eras and styles.");
+                        }
+                    }
+                    ImGui::EndChild();
+                    if (ImGui::Button("Restart Face-off Matchup", ImVec2(-1, 35))) {
+                        g_ShowdownLeftIndex = -1; g_ShowdownRightIndex = -1;
+                    }
                 }
+
+                // Draw Flash Transition overlay
+                if (g_FaceoffFlashTimer > 0.0f) {
+                    g_FaceoffFlashTimer -= ImGui::GetIO().DeltaTime;
+                    ImDrawList* drawList = ImGui::GetWindowDrawList();
+                    ImVec2 minPos = ImGui::GetWindowPos();
+                    ImVec2 maxPos = ImVec2(minPos.x + width, minPos.y + height);
+                    float alpha = g_FaceoffFlashTimer * 2.0f;
+                    if (alpha > 1.0f) alpha = 1.0f;
+                    drawList->AddRectFilled(minPos, maxPos, IM_COL32(255, 255, 255, (int)(alpha * 200)));
+                }
+
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();
@@ -674,11 +690,9 @@ int main() {
 
         ImGui::Render();
         glViewport(0, 0, width, height);
-        
-        // Base workspace colors matching active selections (Binds to GetThemeClearColor)
-        ImVec4 clearColor = GetThemeClearColor(g_ActiveTheme);
-        glClearColor(clearColor.x, clearColor.y, clearColor.z, 1.00f);
-        
+        if (g_ActiveTheme == THEME_LIGHT) glClearColor(0.88f, 0.90f, 0.93f, 1.00f);
+        else if (g_ActiveTheme == THEME_NAVY) glClearColor(0.04f, 0.06f, 0.10f, 1.00f);
+        else if (g_ActiveTheme == THEME_BEIGE) glClearColor(0.94f, 0.92f, 0.89f, 1.00f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
