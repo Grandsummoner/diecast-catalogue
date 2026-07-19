@@ -141,8 +141,11 @@ int main() {
         }
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
         ImGui::Text("%s", g_SoundscapeNames[g_ActiveSoundscape]); ImGui::SameLine();
-        if (ImGui::Button("Toggle Ambient")) g_ActiveSoundscape = (g_ActiveSoundscape + 1) % 4; ImGui::SameLine();
-        ImGui::TextDisabled("|"); ImGui::SameLine();
+        if (ImGui::Button("Toggle Ambient")) {
+            g_ActiveSoundscape = (g_ActiveSoundscape + 1) % 4;
+            TriggerLoopAudioEffect();
+        }
+        ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
         
         // Dynamic Zoom Control Buttons (Size 2 bigger text constraint backup)
         if (ImGui::Button("-")) {
@@ -534,6 +537,7 @@ int main() {
         }
         ImGui::EndChild();
 
+        // ImGui SameLine spacing binds Middle and Right Panels horizontally
         ImGui::SameLine();
 
         // -------------------------------------------------------------
