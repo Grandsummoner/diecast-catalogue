@@ -78,11 +78,13 @@ target_include_directories(DiecastCatalogue PRIVATE
     src/core
 )
 
+# Link winhttp (API requests) and winmm (PlaySound audio effects)
 target_link_libraries(DiecastCatalogue PRIVATE
     glfw
     miniz
     opengl32
     winhttp
+    winmm
 )
 
 # MSVC Configuration to compile a clean GUI application without a command-line terminal popup
