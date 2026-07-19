@@ -41,7 +41,6 @@ struct PolaroidCard {
     bool initialized = false;
 };
 
-// Unified color scheme bindings derived from Image 2
 enum Theme { 
     THEME_BLUE, 
     THEME_GREEN, 

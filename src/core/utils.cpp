@@ -1,5 +1,7 @@
 #include <windows.h>
 #include <winhttp.h>
+#include <shobjidl.h> // Win32 native common item dialogs
+#include <mmsystem.h> // Win32 native PlaySound and waveOutSetVolume
 #include "utils.hpp"
 #include <filesystem>
 #include <algorithm>
@@ -11,7 +13,6 @@
 #include "nlohmann/json.hpp"
 #include "miniz.h"
 
-// Define OpenGL 1.2 constant if missing from Win32 headers
 #ifndef GL_CLAMP_TO_EDGE
 #define GL_CLAMP_TO_EDGE 0x812F
 #endif
@@ -70,6 +71,83 @@ std::wstring toWString(const std::string& str) {
     return wstr;
 }
 
+// -------------------------------------------------------------
+// NATIVE WIN32 EXPLORER FILE & DIRECTORY COMMON FILE DIALOGS
+// -------------------------------------------------------------
+
+std::vector<std::string> openFileDialog() {
+    std::vector<std::string> paths;
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if (FAILED(hr)) return paths;
+    IFileOpenDialog* pFileOpen;
+    hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+    if (SUCCEEDED(hr)) {
+        DWORD dwFlags; pFileOpen->GetOptions(&dwFlags);
+        pFileOpen->SetOptions(dwFlags | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM);
+        COMDLG_FILTERSPEC fileTypes[] = { { L"Image Files", L"*.jpg;*.jpeg;*.png;*.webp" } };
+        pFileOpen->SetFileTypes(ARRAYSIZE(fileTypes), fileTypes);
+        hr = pFileOpen->Show(NULL);
+        if (SUCCEEDED(hr)) {
+            IShellItemArray* pResults;
+            hr = pFileOpen->GetResults(&pResults);
+            if (SUCCEEDED(hr)) {
+                DWORD count = 0; pResults->GetCount(&count);
+                for (DWORD i = 0; i < count; ++i) {
+                    IShellItem* pItem;
+                    hr = pResults->GetItemAt(i, &pItem);
+                    if (SUCCEEDED(hr)) {
+                        PWSTR pszFilePath; hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+                        if (SUCCEEDED(hr)) {
+                            int size = WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, NULL, 0, NULL, NULL);
+                            std::string str(size - 1, 0);
+                            WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, &str[0], size, NULL, NULL);
+                            paths.push_back(str); CoTaskMemFree(pszFilePath);
+                        }
+                        pItem->Release();
+                    }
+                }
+                pResults->Release();
+            }
+        }
+        pFileOpen->Release();
+    }
+    CoUninitialize();
+    return paths;
+}
+
+std::string openFolderDialog() {
+    std::string path;
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if (FAILED(hr)) return "";
+    IFileOpenDialog* pFolderOpen;
+    hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, reinterpret_cast<void**>(&pFolderOpen));
+    if (SUCCEEDED(hr)) {
+        DWORD dwFlags; pFolderOpen->GetOptions(&dwFlags);
+        pFolderOpen->SetOptions(dwFlags | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
+        hr = pFolderOpen->Show(NULL);
+        if (SUCCEEDED(hr)) {
+            IShellItem* pItem; hr = pFolderOpen->GetResult(&pItem);
+            if (SUCCEEDED(hr)) {
+                PWSTR pszFilePath; hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+                if (SUCCEEDED(hr)) {
+                    int size = WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, NULL, 0, NULL, NULL);
+                    std::string str(size - 1, 0);
+                    WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, &str[0], size, NULL, NULL);
+                    path = str; CoTaskMemFree(pszFilePath);
+                }
+                pItem->Release();
+            }
+        }
+        pFolderOpen->Release();
+    }
+    CoUninitialize();
+    return path;
+}
+
+// -------------------------------------------------------------
+// SECURE WORKSPACE TEXTURE LOADER (Windows Wide-String UTF-8 Fix)
+// -------------------------------------------------------------
+
 GLuint GetOrCreateTexture(const std::string& path) {
     if (path.empty()) return 0;
     auto it = g_TextureCache.find(path);
@@ -107,7 +185,6 @@ GLuint GetOrCreateTexture(const std::string& path) {
     return 0;
 }
 
-// WinHTTP Secure client supporting both GET and POST
 std::string makeHttpsRequest(const std::string& verb, const std::string& host, const std::string& path, const std::string& payload) {
     std::string response;
     HINTERNET hSession = WinHttpOpen(L"DiecastCatalogue/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
@@ -133,6 +210,25 @@ std::string makeHttpsRequest(const std::string& verb, const std::string& host, c
     return response;
 }
 
+// Simple URL Encoder to process Wikipedia queries
+std::string urlEncode(const std::string& str) {
+    std::string encoded = "";
+    for (char c : str) {
+        if (isalnum((unsigned char)c) || c == '-' || c == '_' || c == '.' || c == '~') encoded += c;
+        else if (c == ' ') encoded += "%20";
+        else {
+            char hex[4];
+            sprintf_s(hex, "%%%02X", (unsigned char)c);
+            encoded += hex;
+        }
+    }
+    return encoded;
+}
+
+// -------------------------------------------------------------
+// HISTORICAL SPECIFICATION & SCORE HEURISTICS (With Live Web-Search Crawler)
+// -------------------------------------------------------------
+
 float calculateScore(const std::string& make, const std::string& model, int year) {
     std::string seed = make + model + std::to_string(year);
     size_t hashVal = std::hash<std::string>{}(seed);
@@ -142,27 +238,38 @@ float calculateScore(const std::string& make, const std::string& model, int year
 void applyOfflineSpecsAndTrivia(DiecastCar& car) {
     car.collectabilityScore = calculateScore(car.make, car.model, car.year);
     
-    // Keyless public DuckDuckGo abstract search logic (No API Keys, No Wikipedia!)
+    // Normalise name: e.g. "Nissan Skyline GT-R"
     std::string query = car.make + " " + car.model;
-    std::string encoded = "";
-    for (char c : query) {
-        if (c == ' ') encoded += "%20";
-        else encoded += c;
-    }
-
-    std::string rawRes = makeHttpsRequest("GET", "api.duckduckgo.com", "/?q=" + encoded + "&format=json&no_html=1", "");
+    std::string encodedQuery = urlEncode(query);
     bool onlineSuccess = false;
+
+    // 1. Dynamic Keyless Search: Query Wikipedia Search API for the closest match page title
+    std::string searchRes = makeHttpsRequest("GET", "en.wikipedia.org", "/w/api.php?action=query&list=search&srsearch=" + encodedQuery + "&format=json&origin=*", "");
+    std::string bestMatchTitle = "";
     try {
-        if (!rawRes.empty()) {
-            auto j = json::parse(rawRes);
-            if (j.contains("AbstractText") && !j["AbstractText"].get<std::string>().empty()) {
-                car.realHistory = j["AbstractText"].get<std::string>();
-                onlineSuccess = true;
+        if (!searchRes.empty()) {
+            auto sJson = json::parse(searchRes);
+            if (sJson.contains("query") && sJson["query"].contains("search") && !sJson["query"]["search"].empty()) {
+                bestMatchTitle = sJson["query"]["search"][0]["title"].get<std::string>();
             }
         }
     } catch (...) {}
 
-    // Dynamic offline historical fallback if search has no return or offline
+    // 2. Dynamic Summary API: Query Wikipedia Summary REST API using the best match title (No Keys Required!)
+    if (!bestMatchTitle.empty()) {
+        std::string summaryRes = makeHttpsRequest("GET", "en.wikipedia.org", "/api/rest_v1/page/summary/" + urlEncode(bestMatchTitle), "");
+        try {
+            if (!summaryRes.empty()) {
+                auto sumJson = json::parse(summaryRes);
+                if (sumJson.contains("extract") && !sumJson["extract"].get<std::string>().empty()) {
+                    car.realHistory = sumJson["extract"].get<std::string>();
+                    onlineSuccess = true;
+                }
+            }
+        } catch (...) {}
+    }
+
+    // Fallback offline generator if no internet or search yielded no results
     if (!onlineSuccess) {
         std::string modelLower = car.model;
         std::transform(modelLower.begin(), modelLower.end(), modelLower.begin(), ::tolower);
@@ -223,6 +330,7 @@ void parseCarInfo(const std::string& filename, DiecastCar& outCar) {
     outCar.color = "Paint"; outCar.displayName = clean;
 }
 
+// Undo/Redo operations
 void PushHistoryState() {
     HistoryState state; state.catalog = g_Catalog; state.selectedCarIndex = g_SelectedCarIndex;
     g_UndoStack.push_back(state);
@@ -331,7 +439,7 @@ bool importWorkspace(const std::string& zipPath) {
     return false;
 }
 
-// Directory drop scanners
+// Directory drop scanners (Safety Verify Photo formats before queueing)
 void scanAndQueuePath(const std::string& path) {
     try {
         if (fs::is_directory(path)) {
@@ -339,13 +447,38 @@ void scanAndQueuePath(const std::string& path) {
                 if (entry.is_regular_file()) {
                     std::string ext = entry.path().extension().string();
                     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-                    if (ext == ".jpg" || ext == ".png" || ext == ".jpeg" || ext == ".webp") g_PendingImportPaths.push_back(entry.path().string());
+                    if (ext == ".jpg" || ext == ".png" || ext == ".jpeg" || ext == ".webp") {
+                        // Verify image format safety using stbi_info
+                        int w, h, chan;
+                        #ifdef _WIN32
+                        std::wstring wpath = toWString(entry.path().string());
+                        FILE* f = _wfopen(wpath.c_str(), L"rb");
+                        #else
+                        FILE* f = fopen(entry.path().string().c_str(), "rb");
+                        #endif
+                        if (f) {
+                            bool ok = stbi_info_from_file(f, &w, &h, &chan); fclose(f);
+                            if (ok) g_PendingImportPaths.push_back(entry.path().string());
+                        }
+                    }
                 }
             }
         } else if (fs::is_regular_file(path)) {
             std::string ext = fs::path(path).extension().string();
             std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-            if (ext == ".jpg" || ext == ".png" || ext == ".jpeg" || ext == ".webp") g_PendingImportPaths.push_back(path);
+            if (ext == ".jpg" || ext == ".png" || ext == ".jpeg" || ext == ".webp") {
+                int w, h, chan;
+                #ifdef _WIN32
+                std::wstring wpath = toWString(path);
+                FILE* f = _wfopen(wpath.c_str(), L"rb");
+                #else
+                FILE* f = fopen(path.c_str(), "rb");
+                #endif
+                if (f) {
+                    bool ok = stbi_info_from_file(f, &w, &h, &chan); fclose(f);
+                    if (ok) g_PendingImportPaths.push_back(path);
+                }
+            }
         }
     } catch (...) {}
 }
@@ -360,7 +493,7 @@ void finalizePendingImports() {
     g_PendingImportPaths.clear(); g_SelectedCarIndex = (int)g_Catalog.size() - 1; g_UnsavedChanges = true;
 }
 
-// GLFW Window Close & Ingest Callbacks
+// GLFW Window Close & Upload Callbacks
 void glfw_window_close_callback(GLFWwindow* window) {
     if (g_UnsavedChanges) { glfwSetWindowShouldClose(window, GLFW_FALSE); g_ShowExitPrompt = true; }
 }
@@ -371,6 +504,7 @@ void glfw_drop_callback(GLFWwindow* window, int count, const char** paths) {
     if (!g_PendingImportPaths.empty()) g_ShowUploadConfirmPrompt = true;
 }
 
+// Gemini bot proxy
 std::string getGeminiChatResponse(const std::string& question, const DiecastCar& car) {
     std::string key = g_ApiKeyInput; std::string carDesc = car.make + " " + car.model;
     if (key.empty()) {
