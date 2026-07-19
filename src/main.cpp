@@ -2,7 +2,7 @@
 #include "utils.hpp"
 #include "theme.hpp"
 
-#include <algorithm> // Critical: Resolves std::sort and std::transform errors
+#include <algorithm> // Essential to resolve std::sort and std::transform
 #include <ctime>
 #include <cstdlib>
 #include <filesystem> // Essential to resolve filesystem operations
@@ -12,12 +12,91 @@
 
 namespace fs = std::filesystem;
 
-// External linkage fallback safeguards
+// External linkage safeguards
 extern int g_DraggedPolaroidIndex;
 
 // Global swipe offsets for Tinder-style Faceoff animations
 float g_LeftCardSwipeOffset = 0.0f;
 float g_RightCardSwipeOffset = 0.0f;
+
+// -------------------------------------------------------------
+// DYNAMIC GLOBAL SCALING ENGINE (Ctrl + Scroll Wheel Zoom)
+// -------------------------------------------------------------
+void ScaleStyleAndFont(float scale) {
+    ImGuiIO& io = ImGui::GetIO();
+    io.FontGlobalScale = scale;
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowRounding = 16.0f * scale;
+    style.ChildRounding = 12.0f * scale;
+    style.FrameRounding = 10.0f * scale;
+    style.GrabRounding = 10.0f * scale;
+    style.PopupRounding = 10.0f * scale;
+    style.ScrollbarRounding = 10.0f * scale;
+    style.WindowPadding = ImVec2(12.0f * scale, 12.0f * scale);
+    style.FramePadding = ImVec2(8.0f * scale, 4.0f * scale);
+    style.ItemSpacing = ImVec2(8.0f * scale, 6.0f * scale);
+}
+
+// -------------------------------------------------------------
+// BRAND PALETTES GENERATOR (Image 2 Mappings)
+// -------------------------------------------------------------
+void ApplyImageTwoPalette(Theme theme) {
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImVec4* colors = style.Colors;
+
+    // Default Neumorphic Clay Base Colors
+    ImVec4 textCol = ImVec4(0.24f, 0.29f, 0.37f, 1.00f);
+    ImVec4 winBg = ImVec4(0.88f, 0.90f, 0.93f, 1.00f); // Neumorphic Clay Grey `#E0E5EC`
+    ImVec4 borderCol = ImVec4(0.64f, 0.69f, 0.78f, 1.00f);
+    ImVec4 frameBg = ImVec4(0.82f, 0.85f, 0.88f, 1.00f);
+    ImVec4 btnCol = ImVec4(0.92f, 0.93f, 0.95f, 1.00f);
+    ImVec4 activeCol = ImVec4(0.13f, 0.43f, 0.73f, 1.00f); // Default Blue
+
+    if (theme == THEME_GREEN) {
+        winBg = ImVec4(0.88f, 0.92f, 0.90f, 1.00f);
+        activeCol = ImVec4(0.30f, 0.69f, 0.31f, 1.00f); // Tropicana Green
+    } else if (theme == THEME_PURPLE) {
+        winBg = ImVec4(0.93f, 0.88f, 0.95f, 1.00f);
+        activeCol = ImVec4(0.61f, 0.15f, 0.69f, 1.00f); // Thai Purple
+    } else if (theme == THEME_GRAY) {
+        winBg = ImVec4(0.91f, 0.92f, 0.94f, 1.00f);
+        activeCol = ImVec4(0.45f, 0.47f, 0.50f, 1.00f); // Apple Gray
+    } else if (theme == THEME_ORANGE) {
+        winBg = ImVec4(0.95f, 0.91f, 0.88f, 1.00f);
+        activeCol = ImVec4(0.90f, 0.45f, 0.05f, 1.00f); // Amazon Orange
+    } else if (theme == THEME_RED) {
+        winBg = ImVec4(0.96f, 0.88f, 0.89f, 1.00f);
+        activeCol = ImVec4(0.85f, 0.10f, 0.12f, 1.00f); // Coca-Cola Red
+    } else if (theme == THEME_PINK) {
+        winBg = ImVec4(0.96f, 0.88f, 0.92f, 1.00f);
+        activeCol = ImVec4(0.91f, 0.12f, 0.39f, 1.00f); // Lyft Pink
+    } else if (theme == THEME_YELLOW) {
+        winBg = ImVec4(0.96f, 0.95f, 0.88f, 1.00f);
+        activeCol = ImVec4(0.95f, 0.75f, 0.10f, 1.00f); // Hertz Yellow
+    }
+
+    colors[ImGuiCol_Text] = textCol;
+    colors[ImGuiCol_WindowBg] = winBg;
+    colors[ImGuiCol_ChildBg] = winBg;
+    colors[ImGuiCol_Border] = borderCol;
+    colors[ImGuiCol_FrameBg] = frameBg;
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(frameBg.x - 0.05f, frameBg.y - 0.05f, frameBg.z - 0.05f, 1.00f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(frameBg.x - 0.10f, frameBg.y - 0.10f, frameBg.z - 0.10f, 1.00f);
+    colors[ImGuiCol_Button] = btnCol;
+    colors[ImGuiCol_ButtonHovered] = ImVec4(btnCol.x - 0.08f, btnCol.y - 0.07f, btnCol.z - 0.05f, 1.00f);
+    colors[ImGuiCol_ButtonActive] = activeCol;
+    colors[ImGuiCol_Header] = btnCol;
+    colors[ImGuiCol_HeaderHovered] = ImVec4(btnCol.x - 0.08f, btnCol.y - 0.07f, btnCol.z - 0.05f, 1.00f);
+    colors[ImGuiCol_HeaderActive] = activeCol;
+    colors[ImGuiCol_CheckMark] = activeCol;
+    colors[ImGuiCol_SliderGrab] = activeCol;
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(activeCol.x + 0.05f, activeCol.y + 0.05f, activeCol.z + 0.05f, 1.00f);
+}
+
+// -------------------------------------------------------------
+// WINDOW ENTRY POINT & LOOP
+// -------------------------------------------------------------
 
 int main() {
     if (!glfwInit()) return -1;
@@ -34,6 +113,7 @@ int main() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ApplyTheme(g_ActiveTheme);
+    ApplyImageTwoPalette(g_ActiveTheme);
 
     ImGuiIO& io = ImGui::GetIO();
     // System Font Loader: Use Comic Sans MS throughout the visual elements
@@ -44,8 +124,8 @@ int main() {
         io.Fonts->AddFontDefault();
     }
 
-    // High-readability font scale modifier
-    io.FontGlobalScale = 1.30f;
+    // Initialize global scaling size on startup
+    ScaleStyleAndFont(g_GlobalScale);
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
@@ -72,14 +152,12 @@ int main() {
             }
         }
 
-        // Global Ctrl + Mouse Wheel Dynamic Zoom / Scaling handler
-        if (io.KeyCtrl) {
-            float wheel = io.MouseWheel;
-            if (wheel != 0.0f) {
-                io.FontGlobalScale += wheel * 0.05f;
-                if (io.FontGlobalScale < 0.8f) io.FontGlobalScale = 0.8f;
-                if (io.FontGlobalScale > 2.0f) io.FontGlobalScale = 2.0f;
-            }
+        // Global Ctrl + Mouse Wheel Dynamic Zoom / Symmetrical Scaling handler
+        if (io.KeyCtrl && io.MouseWheel != 0.0f) {
+            g_GlobalScale += io.MouseWheel * 0.05f;
+            g_GlobalScale = (std::max)(0.8f, (std::min)(2.0f, g_GlobalScale));
+            ScaleStyleAndFont(g_GlobalScale);
+            g_UnsavedChanges = true;
         }
 
         ImGui_ImplOpenGL3_NewFrame(); ImGui_ImplGlfw_NewFrame(); ImGui::NewFrame();
@@ -118,10 +196,27 @@ int main() {
         ImGui::Text("%s", g_SoundscapeNames[g_ActiveSoundscape]); ImGui::SameLine();
         if (ImGui::Button("Toggle Ambient")) g_ActiveSoundscape = (g_ActiveSoundscape + 1) % 4; ImGui::SameLine();
         ImGui::TextDisabled("|"); ImGui::SameLine();
-        if (ImGui::Button("Theme")) {
-            g_ActiveTheme = static_cast<Theme>((g_ActiveTheme + 1) % 3);
-            ApplyTheme(g_ActiveTheme);
+        
+        // Dynamic Zoom Control Buttons (Size 2 bigger text constraint backup)
+        if (ImGui::Button("-")) {
+            g_GlobalScale = (std::max)(0.8f, g_GlobalScale - 0.10f);
+            ScaleStyleAndFont(g_GlobalScale);
         }
+        ImGui::SameLine();
+        ImGui::Text("Zoom: %.0f%%", g_GlobalScale * 100.0f); ImGui::SameLine();
+        if (ImGui::Button("+")) {
+            g_GlobalScale = (std::min)(2.0f, g_GlobalScale + 0.10f);
+            ScaleStyleAndFont(g_GlobalScale);
+        }
+        ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
+
+        // Color theme selectors based on Image 2 brand specifications
+        ImGui::SetNextItemWidth(130);
+        if (ImGui::Combo("Theme", (int*)&g_ActiveTheme, "Blue\0Green\0Purple\0Gray\0Orange\0Red\0Pink\0Yellow\0")) {
+            ApplyTheme(g_ActiveTheme);
+            ApplyImageTwoPalette(g_ActiveTheme);
+        }
+
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
         if (ImGui::Button("Export ZIP")) exportWorkspace("workspace.zip");
         ImGui::EndChild();
@@ -133,22 +228,22 @@ int main() {
         float bodyHeight = (float)height - 65.0f;
 
         // -------------------------------------------------------------
-        // PANEL 1: LEFT PANEL — FILE & PHOTO MANAGEMENT (20% Width)
+        // PANEL 1: LEFT PANEL — PHOTO & FILE MANAGEMENT (20% Width)
         // -------------------------------------------------------------
         ImGui::BeginChild("LeftPanel", ImVec2(leftPanelWidth - 10.0f, bodyHeight), true);
         
-        // Polished Neumorphic Upload Explorer Drop-Zone Card
+        // Polished Neumorphic Upload Explorer Drop-Zone Card (No more "Ingest" word!)
         ImGui::BeginChild("UploadExplorerCard", ImVec2(0, 125), true);
         ImGui::Text(" 📂 Drag & Drop here");
         ImGui::TextDisabled(" Or use manual uploader:");
         if (ImGui::Button("Upload Files")) {
             g_PendingImportPaths = { "12-Tomica Subaru Sambar.JPG" };
-            g_ShowImportConfirmPrompt = true;
+            g_ShowUploadConfirmPrompt = true;
         }
         ImGui::SameLine();
         if (ImGui::Button("Upload Folder")) {
             g_PendingImportPaths = { "13-Crane.JPG", "14-Toyota.JPG" };
-            g_ShowImportConfirmPrompt = true;
+            g_ShowUploadConfirmPrompt = true;
         }
         ImGui::EndChild();
 
@@ -303,7 +398,7 @@ int main() {
                     for (int i = 0; i < (int)g_Catalog.size(); ++i) {
                         PolaroidCard pc; pc.carIndex = i;
                         pc.position = ImVec2(30.0f + (std::rand() % 200), 50.0f + (std::rand() % 120));
-                        pc.rotation = (float)(std::rand() % 30 - 15); pc.initialized = true;
+                        pc.initialized = true;
                         g_PolaroidCards.push_back(pc);
                     }
                 }
@@ -590,16 +685,16 @@ int main() {
         ImGui::EndChild();
 
         // Modals
-        if (g_ShowImportConfirmPrompt) ImGui::OpenPopup("Confirm Import Queue?");
+        if (g_ShowUploadConfirmPrompt) ImGui::OpenPopup("Confirm Import Queue?");
         if (ImGui::BeginPopupModal("Confirm Import Queue?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Confirm ingestion queue? You are about to import %zu file(s) into your current workspace catalog.", g_PendingImportPaths.size());
+            ImGui::Text("Confirm upload queue? You are about to import %zu file(s) into your current workspace catalog.", g_PendingImportPaths.size());
             ImGui::Spacing();
-            if (ImGui::Button("Confirm Ingest", ImVec2(140, 0))) {
-                finalizePendingImports(); g_ShowImportConfirmPrompt = false; ImGui::CloseCurrentPopup();
+            if (ImGui::Button("Confirm Upload", ImVec2(140, 0))) {
+                finalizePendingImports(); g_ShowUploadConfirmPrompt = false; ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
             if (ImGui::Button("Cancel", ImVec2(100, 0))) {
-                g_PendingImportPaths.clear(); g_ShowImportConfirmPrompt = false; ImGui::CloseCurrentPopup();
+                g_PendingImportPaths.clear(); g_ShowUploadConfirmPrompt = false; ImGui::CloseCurrentPopup();
             }
             ImGui::EndPopup();
         }
