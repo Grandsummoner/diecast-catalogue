@@ -6,7 +6,6 @@
 #include <ctime>
 #include <cstdlib>
 #include <filesystem> // Essential to resolve filesystem operations
-#include <mmsystem.h> // Required to limit volume to 15%
 
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -44,76 +43,6 @@ void ScaleStyleAndFont(float scale) {
 }
 
 // -------------------------------------------------------------
-// BRAND PALETTES GENERATOR (Image 2 Mappings)
-// -------------------------------------------------------------
-void ApplyImageTwoPalette(Theme theme) {
-    ImGuiStyle& style = ImGui::GetStyle();
-    ImVec4* colors = style.Colors;
-
-    // Default Neumorphic Clay Base Colors
-    ImVec4 textCol = ImVec4(0.24f, 0.29f, 0.37f, 1.00f);
-    ImVec4 winBg = ImVec4(0.88f, 0.90f, 0.93f, 1.00f); // Neumorphic Clay Grey `#E0E5EC`
-    ImVec4 borderCol = ImVec4(0.64f, 0.69f, 0.78f, 1.00f);
-    ImVec4 frameBg = ImVec4(0.82f, 0.85f, 0.88f, 1.00f);
-    ImVec4 btnCol = ImVec4(0.92f, 0.93f, 0.95f, 1.00f);
-    ImVec4 activeCol = ImVec4(0.13f, 0.43f, 0.73f, 1.00f); // Default Blue
-
-    if (theme == THEME_GREEN) {
-        winBg = ImVec4(0.88f, 0.92f, 0.90f, 1.00f);
-        activeCol = ImVec4(0.30f, 0.69f, 0.31f, 1.00f); // Tropicana Green
-    } else if (theme == THEME_PURPLE) {
-        winBg = ImVec4(0.93f, 0.88f, 0.95f, 1.00f);
-        activeCol = ImVec4(0.61f, 0.15f, 0.69f, 1.00f); // Thai Purple
-    } else if (theme == THEME_GRAY) {
-        winBg = ImVec4(0.91f, 0.92f, 0.94f, 1.00f);
-        activeCol = ImVec4(0.45f, 0.47f, 0.50f, 1.00f); // Apple Gray
-    } else if (theme == THEME_ORANGE) {
-        winBg = ImVec4(0.95f, 0.91f, 0.88f, 1.00f);
-        activeCol = ImVec4(0.90f, 0.45f, 0.05f, 1.00f); // Amazon Orange
-    } else if (theme == THEME_RED) {
-        winBg = ImVec4(0.96f, 0.88f, 0.89f, 1.00f);
-        activeCol = ImVec4(0.85f, 0.10f, 0.12f, 1.00f); // Coca-Cola Red
-    } else if (theme == THEME_PINK) {
-        winBg = ImVec4(0.96f, 0.88f, 0.92f, 1.00f);
-        activeCol = ImVec4(0.91f, 0.12f, 0.39f, 1.00f); // Lyft Pink
-    } else if (theme == THEME_YELLOW) {
-        winBg = ImVec4(0.96f, 0.95f, 0.88f, 1.00f);
-        activeCol = ImVec4(0.95f, 0.75f, 0.10f, 1.00f); // Hertz Yellow
-    }
-
-    colors[ImGuiCol_Text] = textCol;
-    colors[ImGuiCol_WindowBg] = winBg;
-    colors[ImGuiCol_ChildBg] = winBg;
-    colors[ImGuiCol_Border] = borderCol;
-    colors[ImGuiCol_FrameBg] = frameBg;
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(frameBg.x - 0.05f, frameBg.y - 0.05f, frameBg.z - 0.05f, 1.00f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(frameBg.x - 0.10f, frameBg.y - 0.10f, frameBg.z - 0.10f, 1.00f);
-    colors[ImGuiCol_Button] = btnCol;
-    colors[ImGuiCol_ButtonHovered] = ImVec4(btnCol.x - 0.08f, btnCol.y - 0.07f, btnCol.z - 0.05f, 1.00f);
-    colors[ImGuiCol_ButtonActive] = activeCol;
-    colors[ImGuiCol_Header] = btnCol;
-    colors[ImGuiCol_HeaderHovered] = ImVec4(btnCol.x - 0.08f, btnCol.y - 0.07f, btnCol.z - 0.05f, 1.00f);
-    colors[ImGuiCol_HeaderActive] = activeCol;
-    colors[ImGuiCol_CheckMark] = activeCol;
-    colors[ImGuiCol_SliderGrab] = activeCol;
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(activeCol.x + 0.05f, activeCol.y + 0.05f, activeCol.z + 0.05f, 1.00f);
-}
-
-// Play loop notification soundscapes capped to exactly 15% of standard system volume
-void TriggerLoopAudioEffect() {
-    waveOutSetVolume(NULL, 0x26662666); // Cap application volume to 15% (0x2666 left/right channels)
-    if (g_ActiveSoundscape == 1) {
-        PlaySound(TEXT("SystemNotification"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
-    } else if (g_ActiveSoundscape == 2) {
-        PlaySound(TEXT("SystemHand"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
-    } else if (g_ActiveSoundscape == 3) {
-        PlaySound(TEXT("SystemDefault"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
-    } else {
-        PlaySound(NULL, NULL, 0); // Stop loop audio thread
-    }
-}
-
-// -------------------------------------------------------------
 // MAIN RENDER LOOP & WINDOW callbacks
 // -------------------------------------------------------------
 
@@ -132,7 +61,6 @@ int main() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ApplyTheme(g_ActiveTheme);
-    ApplyImageTwoPalette(g_ActiveTheme);
 
     ImGuiIO& io = ImGui::GetIO();
     // System Font Loader: Use Comic Sans MS throughout the visual elements
@@ -208,7 +136,7 @@ int main() {
         ImGui::TextDisabled("|"); ImGui::SameLine();
         if (ImGui::Button("Gacha Spin")) {
             if (!g_GachaRolling && !g_Catalog.empty()) {
-                g_GachaRolling = true; g_GachaTimer = 0.0f; g_GachaInterval = 0.02f; g_GachaDuration = 0.0f; // Tighter fast interval
+                g_GachaRolling = true; g_GachaTimer = 0.0f; g_GachaInterval = 0.05f; g_GachaDuration = 0.0f;
             }
         }
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
@@ -218,12 +146,24 @@ int main() {
             TriggerLoopAudioEffect();
         }
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
+        
+        // Dynamic Zoom Control Buttons (Size 2 bigger text constraint backup)
+        if (ImGui::Button("-")) {
+            g_GlobalScale = (std::max)(0.8f, g_GlobalScale - 0.10f);
+            ScaleStyleAndFont(g_GlobalScale);
+        }
+        ImGui::SameLine();
+        ImGui::Text("Zoom: %.0f%%", g_GlobalScale * 100.0f); ImGui::SameLine();
+        if (ImGui::Button("+")) {
+            g_GlobalScale = (std::min)(2.0f, g_GlobalScale + 0.10f);
+            ScaleStyleAndFont(g_GlobalScale);
+        }
+        ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
 
         // Color theme selectors based on Image 2 brand specifications
         ImGui::SetNextItemWidth(130);
         if (ImGui::Combo("Theme", (int*)&g_ActiveTheme, "Blue\0Green\0Purple\0Gray\0Orange\0Red\0Pink\0Yellow\0")) {
             ApplyTheme(g_ActiveTheme);
-            ApplyImageTwoPalette(g_ActiveTheme);
         }
 
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
@@ -237,7 +177,7 @@ int main() {
         float bodyHeight = (float)height - 65.0f;
 
         // -------------------------------------------------------------
-        // PANEL 1: LEFT PANEL — PHOTO & FILE MANAGEMENT (20% Width)
+        // PANEL 1: LEFT PANEL — FILE & PHOTO MANAGEMENT (20% Width)
         // -------------------------------------------------------------
         ImGui::BeginChild("LeftPanel", ImVec2(leftPanelWidth - 10.0f, bodyHeight), true);
         
@@ -383,7 +323,7 @@ int main() {
                         ImGui::SetCursorScreenPos(canvasCursor); ImGui::Dummy(frameSize);
                     } else {
                         drawList->AddRectFilled(canvasCursor, ImVec2(canvasCursor.x + frameSize.x, canvasCursor.y + frameSize.y), IM_COL32(15, 23, 42, 255));
-                        ImVec2 textPos = ImVec2(canvasCursor.x + (frameSize.x / 4.0f) - 20.0f, canvasCursor.y + (frameSize.y / 2.0f) - 10.0f);
+                        ImVec2 textPos = ImVec2(canvasCursor.x + (frameSize.x / 2.0f) - 40.0f, canvasCursor.y + (frameSize.y / 2.0f) - 10.0f);
                         drawList->AddText(textPos, IM_COL32(180, 180, 180, 255), "No Photo");
                         ImGui::Dummy(frameSize);
                     }
