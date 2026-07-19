@@ -190,7 +190,7 @@ GLuint GetOrCreateTexture(const std::string& path) {
     return 0;
 }
 
-// WinHTTP Secure client supporting both GET and POST
+// WinHTTP POST / GET Request wrapper
 std::string makeHttpsRequest(const std::string& verb, const std::string& host, const std::string& path, const std::string& payload) {
     std::string response;
     HINTERNET hSession = WinHttpOpen(L"DiecastCatalogue/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
