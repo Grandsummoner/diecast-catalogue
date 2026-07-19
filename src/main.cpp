@@ -39,63 +39,7 @@ void ScaleStyleAndFont(float scale) {
 }
 
 // -------------------------------------------------------------
-// BRAND PALETTES GENERATOR (Image 2 Mappings)
-// -------------------------------------------------------------
-void ApplyImageTwoPalette(Theme theme) {
-    ImGuiStyle& style = ImGui::GetStyle();
-    ImVec4* colors = style.Colors;
-
-    // Default Neumorphic Clay Base Colors
-    ImVec4 textCol = ImVec4(0.24f, 0.29f, 0.37f, 1.00f);
-    ImVec4 winBg = ImVec4(0.88f, 0.90f, 0.93f, 1.00f); // Neumorphic Clay Grey `#E0E5EC`
-    ImVec4 borderCol = ImVec4(0.64f, 0.69f, 0.78f, 1.00f);
-    ImVec4 frameBg = ImVec4(0.82f, 0.85f, 0.88f, 1.00f);
-    ImVec4 btnCol = ImVec4(0.92f, 0.93f, 0.95f, 1.00f);
-    ImVec4 activeCol = ImVec4(0.13f, 0.43f, 0.73f, 1.00f); // Default Blue
-
-    if (theme == THEME_GREEN) {
-        winBg = ImVec4(0.88f, 0.92f, 0.90f, 1.00f);
-        activeCol = ImVec4(0.30f, 0.69f, 0.31f, 1.00f); // Tropicana Green
-    } else if (theme == THEME_PURPLE) {
-        winBg = ImVec4(0.93f, 0.88f, 0.95f, 1.00f);
-        activeCol = ImVec4(0.61f, 0.15f, 0.69f, 1.00f); // Thai Purple
-    } else if (theme == THEME_GRAY) {
-        winBg = ImVec4(0.91f, 0.92f, 0.94f, 1.00f);
-        activeCol = ImVec4(0.45f, 0.47f, 0.50f, 1.00f); // Apple Gray
-    } else if (theme == THEME_ORANGE) {
-        winBg = ImVec4(0.95f, 0.91f, 0.88f, 1.00f);
-        activeCol = ImVec4(0.90f, 0.45f, 0.05f, 1.00f); // Amazon Orange
-    } else if (theme == THEME_RED) {
-        winBg = ImVec4(0.96f, 0.88f, 0.89f, 1.00f);
-        activeCol = ImVec4(0.85f, 0.10f, 0.12f, 1.00f); // Coca-Cola Red
-    } else if (theme == THEME_PINK) {
-        winBg = ImVec4(0.96f, 0.88f, 0.92f, 1.00f);
-        activeCol = ImVec4(0.91f, 0.12f, 0.39f, 1.00f); // Lyft Pink
-    } else if (theme == THEME_YELLOW) {
-        winBg = ImVec4(0.96f, 0.95f, 0.88f, 1.00f);
-        activeCol = ImVec4(0.95f, 0.75f, 0.10f, 1.00f); // Hertz Yellow
-    }
-
-    colors[ImGuiCol_Text] = textCol;
-    colors[ImGuiCol_WindowBg] = winBg;
-    colors[ImGuiCol_ChildBg] = winBg;
-    colors[ImGuiCol_Border] = borderCol;
-    colors[ImGuiCol_FrameBg] = frameBg;
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(frameBg.x - 0.05f, frameBg.y - 0.05f, frameBg.z - 0.05f, 1.00f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(frameBg.x - 0.10f, frameBg.y - 0.10f, frameBg.z - 0.10f, 1.00f);
-    colors[ImGuiCol_Button] = btnCol;
-    colors[ImGuiCol_ButtonHovered] = ImVec4(btnCol.x - 0.08f, btnCol.y - 0.07f, btnCol.z - 0.05f, 1.00f);
-    colors[ImGuiCol_ButtonActive] = activeCol;
-    colors[ImGuiCol_Header] = btnCol;
-    colors[ImGuiCol_HeaderHovered] = ImVec4(btnCol.x - 0.08f, btnCol.y - 0.07f, btnCol.z - 0.05f, 1.00f);
-    colors[ImGuiCol_HeaderActive] = activeCol;
-    colors[ImGuiCol_CheckMark] = activeCol;
-    colors[ImGuiCol_SliderGrab] = activeCol;
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(activeCol.x + 0.05f, activeCol.y + 0.05f, activeCol.z + 0.05f, 1.00f);
-}
-
-// -------------------------------------------------------------
-// WINDOW ENTRY POINT & LOOP
+// MAIN RENDER LOOP & WINDOW callbacks
 // -------------------------------------------------------------
 
 int main() {
@@ -113,7 +57,6 @@ int main() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ApplyTheme(g_ActiveTheme);
-    ApplyImageTwoPalette(g_ActiveTheme);
 
     ImGuiIO& io = ImGui::GetIO();
     // System Font Loader: Use Comic Sans MS throughout the visual elements
@@ -214,7 +157,6 @@ int main() {
         ImGui::SetNextItemWidth(130);
         if (ImGui::Combo("Theme", (int*)&g_ActiveTheme, "Blue\0Green\0Purple\0Gray\0Orange\0Red\0Pink\0Yellow\0")) {
             ApplyTheme(g_ActiveTheme);
-            ApplyImageTwoPalette(g_ActiveTheme);
         }
 
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
@@ -347,9 +289,8 @@ int main() {
                     float canvasHeight = canvasWidth * (9.0f / 16.0f); // Cinema style 16:9 Viewport
                     ImVec2 frameSize = ImVec2(canvasWidth, canvasHeight);
 
-                    drawList->AddRectFilled(canvasCursor, ImVec2(canvasCursor.x + frameSize.x, canvasCursor.y + frameSize.y), IM_COL32(210, 215, 224, 255));
-                    if (g_ActiveTheme == THEME_NAVY) drawList->AddRectFilled(canvasCursor, ImVec2(canvasCursor.x + frameSize.x, canvasCursor.y + frameSize.y), IM_COL32(15, 23, 42, 255));
-                    else if (g_ActiveTheme == THEME_BEIGE) drawList->AddRectFilled(canvasCursor, ImVec2(canvasCursor.x + frameSize.x, canvasCursor.y + frameSize.y), IM_COL32(210, 205, 198, 255));
+                    ImU32 sunkenTrackBg = GetThemeSunkenTrackColor(g_ActiveTheme);
+                    drawList->AddRectFilled(canvasCursor, ImVec2(canvasCursor.x + frameSize.x, canvasCursor.y + frameSize.y), sunkenTrackBg);
                     drawList->AddRect(canvasCursor, ImVec2(canvasCursor.x + frameSize.x, canvasCursor.y + frameSize.y), IM_COL32(0, 168, 255, 100), 12.0f, 0, 1.5f);
 
                     GLuint mainTexID = GetOrCreateTexture(car.folderPath);
@@ -588,7 +529,7 @@ int main() {
         // -------------------------------------------------------------
         ImGui::BeginChild("RightPanel", ImVec2(0, bodyHeight), true);
         
-        // Tab system kept visible by default on startup
+        // Tab system kept visible by default on startup (With or without photos loaded!)
         if (ImGui::BeginTabBar("RightHistologyTabs")) {
             
             if (ImGui::BeginTabItem("Real History")) {
@@ -614,13 +555,9 @@ int main() {
                     auto& car = g_Catalog[g_SelectedCarIndex];
                     ImGui::Text("REAL CAR COLLECTABILITY:");
                     ImGui::TextColored(ImVec4(0.30f, 0.48f, 1.00f, 1.00f), "Score: %.2f / 10.00", car.collectabilityScore);
-                    ImU32 sunkenTrack = IM_COL32(210, 215, 224, 255); ImU32 pillFill = IM_COL32(77, 124, 255, 255);
-                    if (g_ActiveTheme == THEME_NAVY) {
-                        sunkenTrack = IM_COL32(15, 23, 42, 255); pillFill = IM_COL32(0, 240, 255, 255);
-                    } else if (g_ActiveTheme == THEME_BEIGE) {
-                        sunkenTrack = IM_COL32(210, 205, 198, 255); pillFill = IM_COL32(184, 115, 51, 255);
-                    }
-                    DrawNeumorphicProgressBar(car.collectabilityScore / 10.0f, ImVec2(rightPanelWidth - 50.0f, 14.0f), sunkenTrack, pillFill);
+                    ImU32 trackColor = GetThemeSunkenTrackColor(g_ActiveTheme);
+                    ImU32 fillColor = GetThemePillFillColor(g_ActiveTheme);
+                    DrawNeumorphicProgressBar(car.collectabilityScore / 10.0f, ImVec2(rightPanelWidth - 50.0f, 14.0f), trackColor, fillColor);
                     ImGui::Separator(); ImGui::Text("NOTABLE TRIVIA NUGGETS:");
                     for (size_t n = 0; n < car.triviaNuggets.size(); ++n) {
                         ImGui::BeginChild((std::string("TriviaBoxChild##") + std::to_string(n)).c_str(), ImVec2(0, 85), true);
@@ -646,10 +583,10 @@ int main() {
                     ImGui::TextWrapped("Your collection profile is currently empty. Drop file folders to analyze your curator badge.");
                 } else if (jdmCount > muscleCount) {
                     ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "🏆 Archetype Badge: [ JDM Specialist ]");
-                    ImGui::TextWrapped("Your collection displays high fidelity affinity for Japanese domestic engineering and street-tuner design.");
+                    ImGui::TextWrapped("Your collection displays affinity for Japanese domestic engineering and street-tuner design.");
                 } else if (muscleCount > jdmCount) {
                     ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "🏆 Archetype Badge: [ Muscle Classicist ]");
-                    ImGui::TextWrapped("Your collection displays high fidelity affinity for standard American high-displacement V8 drag-strip pedigree.");
+                    ImGui::TextWrapped("Your collection displays affinity for standard American high-displacement V8 drag-strip pedigree.");
                 } else {
                     ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.4f, 1.0f), "🏆 Archetype Badge: [ Balanced Curator ]");
                     ImGui::TextWrapped("Your collection displays highly versatile focus across multiple mechanical layouts and classes.");
@@ -721,9 +658,11 @@ int main() {
 
         ImGui::Render();
         glViewport(0, 0, width, height);
-        if (g_ActiveTheme == THEME_LIGHT) glClearColor(0.88f, 0.90f, 0.93f, 1.00f);
-        else if (g_ActiveTheme == THEME_NAVY) glClearColor(0.04f, 0.06f, 0.10f, 1.00f);
-        else if (g_ActiveTheme == THEME_BEIGE) glClearColor(0.94f, 0.92f, 0.89f, 1.00f);
+        
+        // Base workspace colors matching active selections
+        ImVec4 clearColor = GetThemeClearColor(g_ActiveTheme);
+        glClearColor(clearColor.x, clearColor.y, clearColor.z, 1.00f);
+        
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
