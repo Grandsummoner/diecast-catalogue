@@ -2,7 +2,7 @@
 #include "utils.hpp"
 #include "theme.hpp"
 
-#include <algorithm> // Critical: Resolves std::sort and std::transform errors
+#include <algorithm> // Essential to resolve std::sort and std::transform errors
 #include <ctime>
 #include <cstdlib>
 #include <filesystem> // Essential to resolve filesystem operations
@@ -61,6 +61,7 @@ int main() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ApplyTheme(g_ActiveTheme);
+    ApplyImageTwoPalette(g_ActiveTheme);
 
     ImGuiIO& io = ImGui::GetIO();
     // System Font Loader: Use Comic Sans MS throughout the visual elements
@@ -141,11 +142,8 @@ int main() {
         }
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
         ImGui::Text("%s", g_SoundscapeNames[g_ActiveSoundscape]); ImGui::SameLine();
-        if (ImGui::Button("Toggle Ambient")) {
-            g_ActiveSoundscape = (g_ActiveSoundscape + 1) % 4;
-            TriggerLoopAudioEffect();
-        }
-        ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
+        if (ImGui::Button("Toggle Ambient")) g_ActiveSoundscape = (g_ActiveSoundscape + 1) % 4; ImGui::SameLine();
+        ImGui::TextDisabled("|"); ImGui::SameLine();
         
         // Dynamic Zoom Control Buttons (Size 2 bigger text constraint backup)
         if (ImGui::Button("-")) {
@@ -164,6 +162,7 @@ int main() {
         ImGui::SetNextItemWidth(130);
         if (ImGui::Combo("Theme", (int*)&g_ActiveTheme, "Blue\0Green\0Purple\0Gray\0Orange\0Red\0Pink\0Yellow\0")) {
             ApplyTheme(g_ActiveTheme);
+            ApplyImageTwoPalette(g_ActiveTheme);
         }
 
         ImGui::SameLine(); ImGui::TextDisabled("|"); ImGui::SameLine();
@@ -177,7 +176,7 @@ int main() {
         float bodyHeight = (float)height - 65.0f;
 
         // -------------------------------------------------------------
-        // PANEL 1: LEFT PANEL — FILE & PHOTO MANAGEMENT (20% Width)
+        // PANEL 1: LEFT PANEL — PHOTO & FILE MANAGEMENT (20% Width)
         // -------------------------------------------------------------
         ImGui::BeginChild("LeftPanel", ImVec2(leftPanelWidth - 10.0f, bodyHeight), true);
         
