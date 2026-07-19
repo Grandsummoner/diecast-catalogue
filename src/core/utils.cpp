@@ -44,9 +44,19 @@ float g_GachaDuration = 0.0f;
 std::vector<PolaroidCard> g_PolaroidCards;
 int g_DraggedPolaroidIndex = -1;
 
+// Tinder Faceoff Gameplay States
 int g_ShowdownLeftIndex = -1;
 int g_ShowdownRightIndex = -1;
 bool g_ShowdownActive = false;
+float g_FaceoffFlashTimer = 0.0f;
+int g_ActiveQuestionIndex = 0;
+const char* g_FaceoffQuestions[] = {
+    "Which model has more appealing visual casting details?",
+    "Which car would you showcase front-and-centre on your desk?",
+    "Which model evokes more pure nostalgia for you?",
+    "Which paint layout/color scheme appeals to you more?",
+    "Which generation of automotive engineering do you respect more?"
+};
 
 int g_ActiveSoundscape = 0;
 const char* g_SoundscapeNames[] = { "Soundscape: Off", "Soundscape: Rain", "Soundscape: V8 Idle", "Soundscape: Jazz Cafe" };
@@ -180,7 +190,7 @@ GLuint GetOrCreateTexture(const std::string& path) {
     return 0;
 }
 
-// WinHTTP POST / GET Request wrapper
+// WinHTTP Secure client supporting both GET and POST
 std::string makeHttpsRequest(const std::string& verb, const std::string& host, const std::string& path, const std::string& payload) {
     std::string response;
     HINTERNET hSession = WinHttpOpen(L"DiecastCatalogue/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
@@ -326,7 +336,7 @@ void parseCarInfo(const std::string& filename, DiecastCar& outCar) {
     outCar.color = "Paint"; outCar.displayName = clean;
 }
 
-// Undo/Redo Engine
+// Undo/Redo operations
 void PushHistoryState() {
     HistoryState state; state.catalog = g_Catalog; state.selectedCarIndex = g_SelectedCarIndex;
     g_UndoStack.push_back(state);
@@ -435,7 +445,7 @@ bool importWorkspace(const std::string& zipPath) {
     return false;
 }
 
-// Directory drop scanners (Safety Verify Photo formats before queueing)
+// Directory drop scanners
 void scanAndQueuePath(const std::string& path) {
     try {
         if (fs::is_directory(path)) {
@@ -444,7 +454,6 @@ void scanAndQueuePath(const std::string& path) {
                     std::string ext = entry.path().extension().string();
                     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
                     if (ext == ".jpg" || ext == ".png" || ext == ".jpeg" || ext == ".webp") {
-                        // Verify image format safety using stbi_info
                         int w, h, chan;
                         #ifdef _WIN32
                         std::wstring wpath = toWString(entry.path().string());
@@ -504,11 +513,11 @@ void glfw_drop_callback(GLFWwindow* window, int count, const char** paths) {
 void TriggerLoopAudioEffect() {
     waveOutSetVolume(NULL, 0x26662666); // Cap volume to 15% (0x2666 left/right channels)
     if (g_ActiveSoundscape == 1) {
-        PlaySound(TEXT("SystemNotification"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
+        PlaySound(TEXT("SystemAsterisk"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
     } else if (g_ActiveSoundscape == 2) {
-        PlaySound(TEXT("SystemHand"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
+        PlaySound(TEXT("SystemExclamation"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
     } else if (g_ActiveSoundscape == 3) {
-        PlaySound(TEXT("SystemDefault"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
+        PlaySound(TEXT("SystemQuestion"), NULL, SND_ASYNC | SND_ALIAS | SND_LOOP);
     } else {
         PlaySound(NULL, NULL, 0); // Stop loop audio thread
     }

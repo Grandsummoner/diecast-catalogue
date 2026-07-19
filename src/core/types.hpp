@@ -41,6 +41,7 @@ struct PolaroidCard {
     bool initialized = false;
 };
 
+// Unified color scheme bindings derived from Image 2
 enum Theme { 
     THEME_BLUE, 
     THEME_GREEN, 
@@ -78,9 +79,13 @@ extern float g_GachaDuration;
 extern std::vector<PolaroidCard> g_PolaroidCards;
 extern int g_DraggedPolaroidIndex; // Click-Lock Drag State tracker
 
+// Tinder Faceoff Gameplay States
 extern int g_ShowdownLeftIndex;
 extern int g_ShowdownRightIndex;
 extern bool g_ShowdownActive;
+extern float g_FaceoffFlashTimer;
+extern int g_ActiveQuestionIndex;
+extern const char* g_FaceoffQuestions[];
 
 extern int g_ActiveSoundscape;
 extern const char* g_SoundscapeNames[];
