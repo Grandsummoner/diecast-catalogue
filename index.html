@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -473,6 +473,9 @@
       "Aston Martin", "Jaguar", "Land Rover", "Lotus", "Bentley", "Rolls-Royce", "McLaren", "Bugatti", "Volvo", "Hyundai", "Kia"
     ];
 
+    // COMPUTER TECH KEYWORDS TO REJECT (Gives clean "No additional information available")
+    const techKeywords = ['system on a chip', 'soc', 'gpu', 'cpu', 'semiconductor', 'processor', 'smartphone', 'graphics processing', 'nvidia', 'intel', 'amd', 'microprocessor', 'software application'];
+
     function detectCarMake(cleanName) {
       const lower = cleanName.toLowerCase();
       for (const make of knownMakes) {
@@ -572,7 +575,7 @@
       return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
     }
 
-    // SMART WIKIPEDIA QUERY CLEANER & AUTOMATIC FETCH
+    // SMART WIKIPEDIA QUERY CLEANER & TECH GUARD FILTER
     function cleanWikiQuery(make, title) {
       let q = `${make !== 'Unspecified' ? make : ''} ${title}`.trim();
       q = q.replace(/\b(s\d{4}|no\.\d+|\d{2,4}|tp-\d+|hb|rs\s*x|s-series|ap|iy|ae|tr)\b/gi, ' ');
@@ -585,8 +588,11 @@
       try {
         let wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanedQuery)}`;
         let res = await fetch(wikiUrl);
+        let data = null;
         
-        if (!res.ok) {
+        if (res.ok) {
+          data = await res.json();
+        } else {
           const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanedQuery)}&format=json&origin=*`;
           const searchRes = await fetch(searchUrl);
           const searchData = await searchRes.json();
@@ -595,12 +601,17 @@
             const bestTitle = searchData.query.search[0].title;
             wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`;
             res = await fetch(wikiUrl);
+            if (res.ok) data = await res.json();
           }
         }
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data.extract) return data.extract;
+        if (data && data.extract) {
+          const lowerExtract = data.extract.toLowerCase();
+          // REJECT TECH / COMPUTER CHIP ARTICLES
+          const isTechArticle = techKeywords.some(kw => lowerExtract.includes(kw));
+          if (!isTechArticle) {
+            return data.extract;
+          }
         }
       } catch(e) {}
       return null;
@@ -658,7 +669,7 @@
     }
 
     // INDEXED DB DATABASE INIT
-    const request = indexedDB.open("DiecastCatalogDB_v12", 1);
+    const request = indexedDB.open("DiecastCatalogDB_v13", 1);
     request.onupgradeneeded = (e) => {
       db = e.target.result;
       if (!db.objectStoreNames.contains("cars")) {
