@@ -380,7 +380,7 @@
     </div>
   </div>
 
-  <!-- MODAL: POSTER STUDIO (WITH STICKY ALWAYS-VISIBLE CLOSE BUTTON) -->
+  <!-- MODAL: POSTER STUDIO (WITH DYNAMIC FONT SIZING & STRICT FRAME) -->
   <div id="poster-modal" class="hidden fixed inset-0 bg-ink/90 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
     <div class="bg-surface border-4 border-ink max-w-2xl w-full p-6 md:p-8 my-8 archival-shadow-lg max-h-[92vh] flex flex-col overflow-y-auto relative">
       
@@ -398,12 +398,12 @@
       <!-- CANVAS PREVIEW AREA -->
       <div class="flex justify-center items-center bg-canvas border-2 border-ink p-6 overflow-x-auto my-auto">
         
-        <!-- POSTER CANVAS (A4 ARCHIVAL PRINT FORMAT) -->
-        <div id="poster-canvas" class="w-[420px] h-[600px] bg-surface border-4 border-ink p-6 flex flex-col justify-between text-ink relative box-border archival-shadow">
+        <!-- POSTER CANVAS (STRICT BOUNDED A4 SPEC SHEET FRAME) -->
+        <div id="poster-canvas" class="w-[420px] h-[600px] bg-surface border-4 border-ink p-6 flex flex-col justify-between text-ink relative box-border overflow-hidden archival-shadow">
           
           <!-- POSTER HEADER -->
           <div>
-            <div class="flex justify-between items-start border-b-2 border-ink pb-3 mb-3">
+            <div class="flex justify-between items-start border-b-2 border-ink pb-2 mb-3">
               <div>
                 <p id="poster-spec-num" class="font-mono text-[10px] font-bold tracking-widest text-accent uppercase"></p>
                 <h1 id="poster-make" class="text-3xl font-black font-display tracking-tight uppercase leading-none mt-0.5"></h1>
@@ -412,21 +412,21 @@
             </div>
 
             <!-- PHOTO FRAME -->
-            <div class="my-4 aspect-[4/3] flex items-center justify-center p-3 bg-canvas border-2 border-ink overflow-hidden">
+            <div class="my-3 aspect-[4/3] flex items-center justify-center p-2 bg-canvas border-2 border-ink overflow-hidden">
               <img id="poster-img" src="" class="w-full h-full object-contain">
             </div>
 
             <!-- CASTING TITLE -->
-            <h2 id="poster-title" class="text-xl font-normal uppercase font-display border-b-2 border-ink pb-2 leading-tight"></h2>
+            <h2 id="poster-title" class="text-lg font-normal uppercase font-display border-b-2 border-ink pb-2 leading-tight"></h2>
           </div>
 
-          <!-- POSTER BODY & FOOTER -->
-          <div class="space-y-3">
-            <div class="bg-canvas border border-ink p-3">
+          <!-- POSTER BODY & FOOTER (DYNAMIC FONT CONTAINER) -->
+          <div class="space-y-3 mt-auto pt-2">
+            <div class="bg-canvas border border-ink p-3 overflow-hidden max-h-[140px] flex flex-col justify-center">
               <p class="font-mono text-[10px] font-bold uppercase text-accent mb-1 flex items-center gap-1">
                 <i data-lucide="help-circle" class="w-3 h-3"></i> DID YOU KNOW?
               </p>
-              <p id="poster-history" class="font-sans text-xs leading-relaxed font-medium text-ink/90"></p>
+              <p id="poster-history" class="overflow-hidden"></p>
             </div>
             
             <div class="flex justify-between items-center border-t-2 border-ink pt-2 font-mono text-[10px] text-subtle font-bold uppercase">
@@ -658,7 +658,7 @@
     }
 
     // INDEXED DB DATABASE INIT
-    const request = indexedDB.open("DiecastCatalogDB_v10", 1);
+    const request = indexedDB.open("DiecastCatalogDB_v12", 1);
     request.onupgradeneeded = (e) => {
       db = e.target.result;
       if (!db.objectStoreNames.contains("cars")) {
@@ -708,7 +708,7 @@
       };
     }
 
-    // AUTO DATA GENERATOR WITH AUTOMATIC WIKI FETCH
+    // AUTO DATA GENERATOR WITH NO GARBAGE FALLBACK
     async function getBatchCarData(file, isFolderUpload) {
       const filename = file.name;
       const cleanName = filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ").toLowerCase();
@@ -728,7 +728,6 @@
 
       // AUTOMATIC WIKI FETCH ON UPLOAD
       const wikiFact = await fetchWikiSummaryText(detectedMake, formattedTitle);
-      const defaultFact = `The ${formattedTitle} is a landmark model in automotive history, celebrated by car enthusiasts worldwide.`;
 
       return {
         castingName: formattedTitle || "Custom Model",
@@ -737,7 +736,7 @@
         carMake: detectedMake,
         photoDate: detectedPhotoDate,
         color: "Standard Finish",
-        historyNugget: wikiFact || defaultFact
+        historyNugget: wikiFact || "No additional information available."
       };
     }
 
@@ -960,7 +959,10 @@
         document.getElementById("detail-history").innerText = `"${fact}"`;
         alert("Updated with Wikipedia fact!");
       } else {
-        alert("No Wikipedia summary found. Try editing car make or title.");
+        selectedCar.historyNugget = "No additional information available.";
+        saveToDB(selectedCar);
+        document.getElementById("detail-history").innerText = `"No additional information available."`;
+        alert("No Wikipedia article found.");
       }
     }
 
@@ -1103,7 +1105,7 @@
       document.getElementById("detail-make").innerText = selectedCar.carMake || 'Unspecified';
       document.getElementById("detail-color").innerText = selectedCar.color;
       document.getElementById("detail-photo-date").innerText = selectedCar.photoDate || 'Unspecified';
-      document.getElementById("detail-history").innerText = `"${selectedCar.historyNugget}"`;
+      document.getElementById("detail-history").innerText = `"${selectedCar.historyNugget || 'No additional information available.'}"`;
 
       updateFavStarUI();
     }
@@ -1137,7 +1139,7 @@
       document.getElementById("edit-make").value = selectedCar.carMake || '';
       document.getElementById("edit-color").value = selectedCar.color;
       document.getElementById("edit-photo-date").value = selectedCar.photoDate || '';
-      document.getElementById("edit-history").value = selectedCar.historyNugget;
+      document.getElementById("edit-history").value = selectedCar.historyNugget || '';
 
       document.getElementById("modal-view-mode").classList.add("hidden");
       document.getElementById("modal-edit-mode").classList.remove("hidden");
@@ -1155,7 +1157,7 @@
       selectedCar.carMake = document.getElementById("edit-make").value || 'Unspecified';
       selectedCar.color = document.getElementById("edit-color").value || selectedCar.color;
       selectedCar.photoDate = document.getElementById("edit-photo-date").value || 'Unspecified';
-      selectedCar.historyNugget = document.getElementById("edit-history").value || selectedCar.historyNugget;
+      selectedCar.historyNugget = document.getElementById("edit-history").value || 'No additional information available.';
 
       const idx = catalog.findIndex(c => c.id === selectedCar.id);
       if (idx !== -1) catalog[idx] = { ...selectedCar };
@@ -1166,7 +1168,7 @@
       renderCatalog();
     }
 
-    // POSTER STUDIO
+    // POSTER STUDIO (WITH DYNAMIC FONT SIZING)
     function openPosterModal(id) {
       selectedCar = catalog.find(c => c.id === id);
       if (!selectedCar) return;
@@ -1177,9 +1179,23 @@
       document.getElementById("poster-img").src = selectedCar.image;
       document.getElementById("poster-title").innerText = selectedCar.castingName;
       
-      let cleanHistory = selectedCar.historyNugget || '';
+      let cleanHistory = selectedCar.historyNugget || 'No additional information available.';
       cleanHistory = cleanHistory.replace(/^The 1:1\s+/i, 'The ');
-      document.getElementById("poster-history").innerText = `"${cleanHistory}"`;
+      
+      const posterHistoryEl = document.getElementById("poster-history");
+      posterHistoryEl.innerText = `"${cleanHistory}"`;
+
+      // DYNAMIC FONT SIZING BASED ON TEXT LENGTH
+      const len = cleanHistory.length;
+      if (len < 80) {
+        posterHistoryEl.className = "font-sans text-sm font-medium leading-relaxed text-ink/90";
+      } else if (len < 160) {
+        posterHistoryEl.className = "font-sans text-xs font-medium leading-normal text-ink/90";
+      } else if (len < 280) {
+        posterHistoryEl.className = "font-sans text-[10px] font-medium leading-tight text-ink/90";
+      } else {
+        posterHistoryEl.className = "font-sans text-[9px] font-medium leading-none text-ink/90";
+      }
 
       document.getElementById("poster-brand").innerText = `BRAND: ${selectedCar.brand}`;
 
