@@ -188,7 +188,7 @@
         <input 
           type="text" 
           id="search-box"
-          placeholder="SEARCH TITLE, MAKE, FOLDER, COLOR, OR 1:1 HISTORY..."
+          placeholder="SEARCH TITLE, MAKE, FOLDER, COLOR, OR FACTS..."
           oninput="currentPage=1; renderCatalog();"
           class="w-full bg-canvas border-2 border-borderLine pl-12 pr-4 py-3 font-mono text-sm font-bold focus:border-ink outline-none uppercase placeholder:text-subtle/50"
         />
@@ -267,9 +267,9 @@
   <div id="detail-modal" class="hidden fixed inset-0 bg-ink/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-surface border-4 border-ink max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 relative archival-shadow-lg">
       
-      <!-- FIXED NON-OVERLAPPING MODAL HEADER ACTION BUTTONS -->
+      <!-- FIXED MODAL HEADER ACTION BUTTONS -->
       <div class="absolute top-6 right-6 flex items-center gap-2 z-20">
-        <button onclick="toggleFavCurrent()" class="p-2 border-2 border-ink bg-canvas hover:bg-ink hover:text-surface" title="Toggle Favorite">
+        <button id="detail-fav-btn" onclick="toggleFavCurrent()" class="p-2 border-2 border-ink bg-canvas hover:bg-ink hover:text-surface" title="Toggle Favorite">
           <i id="detail-fav-star" data-lucide="star" class="w-5 h-5 text-subtle"></i>
         </button>
         <button onclick="closeModal('detail-modal')" class="p-2 bg-canvas border-2 border-ink hover:bg-ink hover:text-surface" title="Close Popup">
@@ -304,15 +304,15 @@
                 <div class="flex justify-between"><span class="text-subtle">PHOTO DATE:</span> <span id="detail-photo-date" class="font-bold"></span></div>
               </div>
 
-              <!-- 1:1 Real History Section -->
+              <!-- DID YOU KNOW? SECTION -->
               <div class="mt-6 bg-canvas border-2 border-ink p-4">
                 <div class="flex items-center justify-between font-mono text-xs font-bold uppercase text-ink mb-2">
                   <div class="flex items-center gap-2">
-                    <i data-lucide="book-open" class="w-4 h-4 text-accent"></i>
-                    <span>1:1 Real Automobile History</span>
+                    <i data-lucide="help-circle" class="w-4 h-4 text-accent"></i>
+                    <span>DID YOU KNOW?</span>
                   </div>
                   <button onclick="fetchWikiHistory()" class="text-[10px] bg-surface border border-ink px-2 py-0.5 hover:bg-ink hover:text-surface flex items-center gap-1">
-                    <i data-lucide="globe" class="w-3 h-3"></i> FETCH WIKI
+                    <i data-lucide="globe" class="w-3 h-3"></i> RE-FETCH WIKI
                   </button>
                 </div>
                 <p id="detail-history" class="font-sans text-sm leading-relaxed text-ink/90 font-medium"></p>
@@ -367,7 +367,7 @@
             </div>
           </div>
           <div>
-            <label class="block text-subtle font-bold mb-1">1:1 REAL AUTOMOBILE HISTORY</label>
+            <label class="block text-subtle font-bold mb-1">DID YOU KNOW? (FACT)</label>
             <textarea id="edit-history" rows="4" class="w-full bg-canvas border-2 border-ink p-2 font-sans text-sm font-semibold"></textarea>
           </div>
           <div class="flex gap-3 pt-2">
@@ -380,19 +380,22 @@
     </div>
   </div>
 
-  <!-- MODAL: POSTER STUDIO -->
+  <!-- MODAL: POSTER STUDIO (WITH STICKY ALWAYS-VISIBLE CLOSE BUTTON) -->
   <div id="poster-modal" class="hidden fixed inset-0 bg-ink/90 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-surface border-4 border-ink max-w-4xl w-full p-6 md:p-8 my-8 archival-shadow-lg">
-      <div class="flex justify-between items-center pb-6 mb-6 border-b-2 border-ink">
+    <div class="bg-surface border-4 border-ink max-w-4xl w-full p-6 md:p-8 my-8 archival-shadow-lg max-h-[92vh] flex flex-col overflow-y-auto relative">
+      
+      <!-- STICKY TOP HEADER WITH CLOSE BUTTON -->
+      <div class="sticky top-0 bg-surface z-30 border-b-2 border-ink pb-4 pt-2 mb-6 flex justify-between items-center">
         <div>
           <h3 class="text-2xl font-black font-display uppercase">Poster Studio</h3>
           <p class="font-mono text-xs text-subtle">Export printable graphic spec sheet cards for social sharing</p>
         </div>
-        <button onclick="closeModal('poster-modal')" class="p-2 border-2 border-ink hover:bg-ink hover:text-surface">
-          <i data-lucide="x" class="w-5 h-5"></i>
+        <button onclick="closeModal('poster-modal')" class="p-2 border-2 border-ink bg-canvas hover:bg-ink hover:text-surface shrink-0" title="Close Poster Studio">
+          <i data-lucide="x" class="w-6 h-6"></i>
         </button>
       </div>
 
+      <!-- CANVAS PREVIEW AREA -->
       <div class="flex justify-center bg-canvas border-2 border-ink p-4 md:p-8 overflow-x-auto">
         <div id="poster-canvas" class="w-[450px] min-h-[580px] bg-[#FAF8F5] border-4 border-ink p-8 flex flex-col justify-between text-ink relative box-border">
           <div>
@@ -468,21 +471,21 @@
     function readExifDate(file) {
       return new Promise((resolve) => {
         const reader = new FileReader();
-        const blob = file.slice(0, 131072); // Read first 128KB
+        const blob = file.slice(0, 131072);
         reader.onload = function(e) {
           try {
             const buffer = e.target.result;
             const view = new DataView(buffer);
-            if (view.getUint16(0, false) !== 0xFFD8) return resolve(null); // Not a JPEG
+            if (view.getUint16(0, false) !== 0xFFD8) return resolve(null);
 
             let length = view.byteLength;
             let offset = 2;
 
             while (offset < length) {
-              if (view.getUint16(offset, false) === 0xFFE1) { // APP1 Marker
+              if (view.getUint16(offset, false) === 0xFFE1) {
                 const app1Length = view.getUint16(offset + 2, false);
                 const exifHeader = view.getUint32(offset + 4, false);
-                if (exifHeader === 0x45786966) { // "Exif"
+                if (exifHeader === 0x45786966) {
                   const tiffOffset = offset + 10;
                   const littleEndian = view.getUint16(tiffOffset, false) === 0x4949;
                   const count = view.getUint16(tiffOffset + 8, littleEndian);
@@ -503,7 +506,7 @@
                   for (let i = 0; i < exifCount; i++) {
                     const tagOffset = searchOffset + 2 + i * 12;
                     const tag = view.getUint16(tagOffset, littleEndian);
-                    if (tag === 0x9003 || tag === 0x9004) { // DateTimeOriginal / CreateDate
+                    if (tag === 0x9003 || tag === 0x9004) {
                       const valueOffset = tiffOffset + view.getUint32(tagOffset + 8, littleEndian);
                       let dateStr = "";
                       for (let j = 0; j < 19; j++) {
@@ -537,11 +540,9 @@
     }
 
     async function extractPhotoDate(file) {
-      // 1. Try binary EXIF
       const exifDate = await readExifDate(file);
       if (exifDate) return exifDate;
 
-      // 2. Try file.lastModified
       if (file.lastModified) {
         const modDate = new Date(file.lastModified);
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -550,18 +551,43 @@
         }
       }
 
-      // 3. Fallback to current date
       const now = new Date();
       const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
       return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
     }
 
-    // SMART WIKIPEDIA QUERY CLEANER
+    // SMART WIKIPEDIA QUERY CLEANER & AUTOMATIC FETCH
     function cleanWikiQuery(make, title) {
       let q = `${make !== 'Unspecified' ? make : ''} ${title}`.trim();
       q = q.replace(/\b(s\d{4}|no\.\d+|\d{2,4}|tp-\d+|hb|rs\s*x|s-series|ap|iy|ae|tr)\b/gi, ' ');
       q = q.replace(/\s+/g, ' ').trim();
       return q || title;
+    }
+
+    async function fetchWikiSummaryText(carMake, castingName) {
+      const cleanedQuery = cleanWikiQuery(carMake, castingName);
+      try {
+        let wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanedQuery)}`;
+        let res = await fetch(wikiUrl);
+        
+        if (!res.ok) {
+          const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanedQuery)}&format=json&origin=*`;
+          const searchRes = await fetch(searchUrl);
+          const searchData = await searchRes.json();
+
+          if (searchData.query && searchData.query.search.length > 0) {
+            const bestTitle = searchData.query.search[0].title;
+            wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`;
+            res = await fetch(wikiUrl);
+          }
+        }
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.extract) return data.extract;
+        }
+      } catch(e) {}
+      return null;
     }
 
     // THEME SWITCHER
@@ -616,7 +642,7 @@
     }
 
     // INDEXED DB DATABASE INIT
-    const request = indexedDB.open("DiecastCatalogDB_v8", 1);
+    const request = indexedDB.open("DiecastCatalogDB_v9", 1);
     request.onupgradeneeded = (e) => {
       db = e.target.result;
       if (!db.objectStoreNames.contains("cars")) {
@@ -666,7 +692,7 @@
       };
     }
 
-    // AUTO DATA GENERATOR
+    // AUTO DATA GENERATOR WITH AUTOMATIC WIKI FETCH
     async function getBatchCarData(file, isFolderUpload) {
       const filename = file.name;
       const cleanName = filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ").toLowerCase();
@@ -684,6 +710,10 @@
       const detectedMake = detectCarMake(cleanName);
       const detectedPhotoDate = await extractPhotoDate(file);
 
+      // AUTOMATIC WIKI FETCH ON UPLOAD
+      const wikiFact = await fetchWikiSummaryText(detectedMake, formattedTitle);
+      const defaultFact = `The 1:1 ${formattedTitle} represents a landmark model in automotive history, celebrated by car enthusiasts worldwide.`;
+
       return {
         castingName: formattedTitle || "Custom Model",
         brand: assignedBrand,
@@ -691,7 +721,7 @@
         carMake: detectedMake,
         photoDate: detectedPhotoDate,
         color: "Standard Finish",
-        historyNugget: `The 1:1 ${formattedTitle} represents a landmark model in automotive history, celebrated by car enthusiasts worldwide.`
+        historyNugget: wikiFact || defaultFact
       };
     }
 
@@ -712,7 +742,7 @@
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        statusText.innerText = `Processing ${i + 1} of ${files.length} items...`;
+        statusText.innerText = `Processing ${i + 1} of ${files.length} items (fetching Wiki facts)...`;
         progressBar.style.width = `${Math.round(((i + 1) / files.length) * 100)}%`;
 
         const base64 = await toBase64(file);
@@ -733,7 +763,7 @@
           createdAt: startTime + i
         });
 
-        if (i % 10 === 0) {
+        if (i % 5 === 0) {
           await new Promise(r => setTimeout(r, 10));
         }
       }
@@ -743,7 +773,7 @@
       event.target.value = "";
     }
 
-    // RENDER CATALOG GRID WITH 2-ROW HEADER & YELLOW FAVORITE STAR
+    // RENDER CATALOG GRID
     function getFilteredCatalog() {
       const search = document.getElementById("search-box").value.toLowerCase().trim();
       const brandFilter = document.getElementById("brand-filter").value;
@@ -870,18 +900,25 @@
       }
     }
 
+    function updateFavStarUI() {
+      const btn = document.getElementById("detail-fav-btn");
+      if (!btn || !selectedCar) return;
+      btn.innerHTML = selectedCar.isFavorite 
+        ? `<i data-lucide="star" class="w-5 h-5 text-yellow-500 fill-yellow-400"></i>`
+        : `<i data-lucide="star" class="w-5 h-5 text-subtle"></i>`;
+      lucide.createIcons();
+    }
+
     function toggleFavCurrent() {
       if (!selectedCar) return;
       selectedCar.isFavorite = !selectedCar.isFavorite;
-      saveToDB(selectedCar);
       
-      const starBtnIcon = document.getElementById("detail-fav-star");
-      if (selectedCar.isFavorite) {
-        starBtnIcon.className = "w-5 h-5 text-yellow-500 fill-yellow-400";
-      } else {
-        starBtnIcon.className = "w-5 h-5 text-subtle";
-      }
-      lucide.createIcons();
+      const idx = catalog.findIndex(c => c.id === selectedCar.id);
+      if (idx !== -1) catalog[idx].isFavorite = selectedCar.isFavorite;
+
+      saveToDB(selectedCar);
+      updateFavStarUI();
+      renderCatalog();
     }
 
     function toggleFavFilter() {
@@ -896,40 +933,18 @@
       renderCatalog();
     }
 
-    // SMART WIKIPEDIA 1:1 HISTORY FETCH
+    // RE-FETCH WIKI
     async function fetchWikiHistory() {
       if (!selectedCar) return;
-      const cleanedQuery = cleanWikiQuery(selectedCar.carMake, selectedCar.castingName);
-      
-      try {
-        let wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanedQuery)}`;
-        let res = await fetch(wikiUrl);
-        
-        if (!res.ok) {
-          const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanedQuery)}&format=json&origin=*`;
-          const searchRes = await fetch(searchUrl);
-          const searchData = await searchRes.json();
+      const fact = await fetchWikiSummaryText(selectedCar.carMake, selectedCar.castingName);
 
-          if (searchData.query && searchData.query.search.length > 0) {
-            const bestTitle = searchData.query.search[0].title;
-            wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`;
-            res = await fetch(wikiUrl);
-          }
-        }
-
-        if (!res.ok) throw new Error("Not found");
-        const data = await res.json();
-
-        if (data.extract) {
-          selectedCar.historyNugget = data.extract;
-          saveToDB(selectedCar);
-          document.getElementById("detail-history").innerText = `"${data.extract}"`;
-          alert("Fetched real-world 1:1 history from Wikipedia!");
-        } else {
-          alert("No exact Wikipedia article found for this vehicle.");
-        }
-      } catch(err) {
-        alert("Could not fetch Wikipedia article. Try editing car make or title.");
+      if (fact) {
+        selectedCar.historyNugget = fact;
+        saveToDB(selectedCar);
+        document.getElementById("detail-history").innerText = `"${fact}"`;
+        alert("Updated with Wikipedia fact!");
+      } else {
+        alert("No Wikipedia summary found. Try editing car make or title.");
       }
     }
 
@@ -1052,12 +1067,9 @@
       }
     }
 
-    // MODAL & DETAIL EDITING
-    function openDetailModal(id) {
-      selectedCar = catalog.find(c => c.id === id);
+    // MODAL & DETAIL EDITING (INSTANT DOM REFLECTION)
+    function updateModalViewDOM() {
       if (!selectedCar) return;
-
-      cancelEditMode();
 
       document.getElementById("detail-img").src = selectedCar.image;
       document.getElementById("detail-brand").innerText = selectedCar.brand;
@@ -1077,12 +1089,15 @@
       document.getElementById("detail-photo-date").innerText = selectedCar.photoDate || 'Unspecified';
       document.getElementById("detail-history").innerText = `"${selectedCar.historyNugget}"`;
 
-      const starBtn = document.getElementById("detail-fav-star");
-      if (selectedCar.isFavorite) {
-        starBtn.className = "w-5 h-5 text-yellow-500 fill-yellow-400";
-      } else {
-        starBtn.className = "w-5 h-5 text-subtle";
-      }
+      updateFavStarUI();
+    }
+
+    function openDetailModal(id) {
+      selectedCar = catalog.find(c => c.id === id);
+      if (!selectedCar) return;
+
+      cancelEditMode();
+      updateModalViewDOM();
 
       document.getElementById("delete-btn").onclick = () => {
         if(confirm("Delete item from archive?")) {
@@ -1126,8 +1141,14 @@
       selectedCar.photoDate = document.getElementById("edit-photo-date").value || 'Unspecified';
       selectedCar.historyNugget = document.getElementById("edit-history").value || selectedCar.historyNugget;
 
+      // Update catalog array in memory immediately
+      const idx = catalog.findIndex(c => c.id === selectedCar.id);
+      if (idx !== -1) catalog[idx] = { ...selectedCar };
+
       saveToDB(selectedCar);
-      openDetailModal(selectedCar.id);
+      updateModalViewDOM();
+      cancelEditMode();
+      renderCatalog();
     }
 
     // POSTER STUDIO
@@ -1136,7 +1157,7 @@
       if (!selectedCar) return;
 
       document.getElementById("poster-spec-num").innerText = `SPECIMEN NO. #${selectedCar.id.slice(-4)}`;
-      document.getElementById("poster-make").innerText = selectedCar.carMake || 'UNSPECIFIED';
+      document.getElementById("poster-make").innerText = selectedCar.carMake !== 'Unspecified' ? selectedCar.carMake : selectedCar.brand;
       document.getElementById("poster-folder").innerText = selectedCar.folderTag ? `📁 ${selectedCar.folderTag}` : 'ARCHIVE';
       document.getElementById("poster-img").src = selectedCar.image;
       document.getElementById("poster-title").innerText = selectedCar.castingName;
