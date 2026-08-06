@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Apex Archive — Diecast Collector Index</title>
+  <title>Diecast Collector Archive</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -38,75 +38,144 @@
     body { background-color: #FAF8F5; color: #111111; }
     .archival-shadow { box-shadow: 4px 4px 0px 0px #111111; }
     .archival-shadow-lg { box-shadow: 8px 8px 0px 0px #111111; }
+    .card-dragging { opacity: 0.4; border-style: dashed !important; }
   </style>
 </head>
 <body class="font-sans antialiased pb-20">
 
+  <!-- UPLOAD PROGRESS OVERLAY -->
+  <div id="upload-progress-overlay" class="hidden fixed inset-0 bg-ink/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center p-6 text-surface">
+    <div class="bg-surface text-ink border-4 border-ink p-8 max-w-md w-full archival-shadow-lg text-center">
+      <i data-lucide="loader" class="w-10 h-10 animate-spin text-accent mx-auto mb-4"></i>
+      <h3 class="text-2xl font-black font-display uppercase">Importing Photos...</h3>
+      <p id="upload-status-text" class="font-mono text-xs text-subtle mt-2 mb-4">Processing 0 of 0 items</p>
+      <div class="w-full bg-canvas border-2 border-ink h-4 relative overflow-hidden">
+        <div id="upload-progress-bar" class="bg-accent h-full w-0 transition-all duration-150"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- HEADER -->
-  <header class="border-b-2 border-ink px-6 py-8 bg-surface">
+  <header class="border-b-2 border-ink px-6 py-6 bg-surface">
     <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
       <div>
-        <div class="flex items-center gap-2 text-accent font-mono text-sm tracking-widest uppercase font-bold mb-1">
+        <div class="flex items-center gap-2 text-accent font-mono text-xs tracking-widest uppercase font-bold mb-1">
           <span class="inline-block w-2 h-2 bg-accent"></span>
-          Index System v3.0 • Offline Collector Edition
+          Personal Collector Index
         </div>
-        <h1 class="text-5xl md:text-6xl font-black tracking-tight uppercase font-display">
-          Apex Archive
-        </h1>
+        
+        <!-- RENAMEABLE ARCHIVE TITLE -->
+        <div class="flex items-center gap-3">
+          <h1 id="archive-title-display" class="text-4xl md:text-5xl font-normal tracking-tight uppercase font-display">
+            APEX ARCHIVE
+          </h1>
+          <button onclick="renameArchive()" class="p-2 hover:bg-canvas border border-transparent hover:border-ink" title="Rename Archive">
+            <i data-lucide="edit-2" class="w-5 h-5 text-subtle"></i>
+          </button>
+        </div>
       </div>
 
-      <div class="flex items-center gap-4">
-        <div class="text-right border-r-2 border-borderLine pr-4 font-mono">
-          <div id="unit-count" class="text-3xl font-bold leading-none">0</div>
-          <div class="text-xs text-subtle tracking-wider uppercase mt-1">Units Saved</div>
-        </div>
+      <!-- HEADER ACTIONS -->
+      <div class="flex flex-wrap items-center gap-3">
+        
+        <!-- DICE RANDOM PICK -->
+        <button onclick="pickRandomCar()" class="bg-canvas border-2 border-ink hover:bg-ink hover:text-surface px-4 py-3 font-mono font-bold text-xs uppercase flex items-center gap-2 archival-shadow" title="Pick Random Car of the Day">
+          <span class="text-lg leading-none">🎲</span>
+          <span>DICE PICK</span>
+        </button>
 
-        <label class="cursor-pointer bg-ink hover:bg-accent text-surface px-6 py-4 flex items-center gap-3 font-mono font-bold tracking-wider text-sm transition-colors border-2 border-ink archival-shadow">
-          <i data-lucide="plus" class="w-5 h-5"></i>
-          <span id="import-btn-text">IMPORT PHOTOS</span>
-          <input type="file" id="photo-input" multiple accept="image/*" class="hidden" onchange="handleFileUpload(event)">
+        <!-- BACKUP / RESTORE -->
+        <button onclick="exportBackup()" class="bg-canvas border-2 border-ink hover:bg-ink hover:text-surface px-3 py-3 font-mono text-xs font-bold uppercase" title="Download backup file">
+          <i data-lucide="download" class="w-4 h-4"></i>
+        </button>
+        <label class="bg-canvas border-2 border-ink hover:bg-ink hover:text-surface px-3 py-3 font-mono text-xs font-bold uppercase cursor-pointer" title="Restore backup file">
+          <i data-lucide="upload" class="w-4 h-4"></i>
+          <input type="file" accept=".json" class="hidden" onchange="importBackup(event)">
         </label>
+
+        <!-- UPLOAD BUTTONS (FILES VS FOLDER) -->
+        <div class="flex items-center gap-2">
+          <label class="cursor-pointer bg-ink hover:bg-accent text-surface px-4 py-3 flex items-center gap-2 font-mono font-bold text-xs uppercase border-2 border-ink archival-shadow">
+            <i data-lucide="image" class="w-4 h-4"></i>
+            <span>+ FILES</span>
+            <input type="file" id="files-input" multiple accept="image/*" class="hidden" onchange="handleFileUpload(event, false)">
+          </label>
+
+          <label class="cursor-pointer bg-ink hover:bg-accent text-surface px-4 py-3 flex items-center gap-2 font-mono font-bold text-xs uppercase border-2 border-ink archival-shadow">
+            <i data-lucide="folder-plus" class="w-4 h-4"></i>
+            <span>+ FOLDER</span>
+            <input type="file" id="folder-input" webkitdirectory directory multiple accept="image/*" class="hidden" onchange="handleFileUpload(event, true)">
+          </label>
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- CONTROLS, SEARCH & FILTERS -->
-  <section class="max-w-7xl mx-auto px-6 pt-8 pb-4">
+  <!-- CONTROLS, SEARCH, FILTERS & BATCH ACTIONS -->
+  <section class="max-w-7xl mx-auto px-6 pt-6 pb-2">
     <div class="bg-surface border-2 border-ink p-4 flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between archival-shadow">
       
-      <!-- Search Input -->
+      <!-- Search Box -->
       <div class="relative flex-1">
         <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-subtle"></i>
         <input 
           type="text" 
           id="search-box"
-          placeholder="SEARCH CASTING, MAKE, LIVERY, OR 1:1 HISTORY..."
-          oninput="renderCatalog()"
-          class="w-full bg-canvas border-2 border-borderLine pl-12 pr-4 py-3 font-mono text-base font-bold focus:border-ink outline-none uppercase tracking-wide placeholder:text-subtle/50"
+          placeholder="SEARCH TITLE, MAKE, FOLDER, COLOR, OR 1:1 HISTORY..."
+          oninput="currentPage=1; renderCatalog();"
+          class="w-full bg-canvas border-2 border-borderLine pl-12 pr-4 py-3 font-mono text-sm font-bold focus:border-ink outline-none uppercase placeholder:text-subtle/50"
         />
       </div>
 
-      <!-- Filters -->
+      <!-- Filters & Select Mode Toggle -->
       <div class="flex flex-wrap items-center gap-3 font-mono text-xs font-bold">
-        <div class="flex items-center gap-2 bg-canvas px-3 py-3 border border-borderLine">
+        <div class="flex items-center gap-2 bg-canvas px-3 py-2.5 border border-borderLine">
           <span>BRAND:</span>
-          <select id="brand-filter" onchange="renderCatalog()" class="bg-transparent font-bold cursor-pointer outline-none uppercase">
+          <select id="brand-filter" onchange="currentPage=1; renderCatalog();" class="bg-transparent font-bold cursor-pointer outline-none uppercase">
             <option value="ALL">ALL BRANDS</option>
           </select>
         </div>
 
-        <div class="flex items-center gap-2 bg-canvas px-3 py-3 border border-borderLine">
-          <span>SCALE:</span>
-          <select id="scale-filter" onchange="renderCatalog()" class="bg-transparent font-bold cursor-pointer outline-none uppercase">
-            <option value="ALL">ALL SCALES</option>
+        <div class="flex items-center gap-2 bg-canvas px-3 py-2.5 border border-borderLine">
+          <span>FOLDER:</span>
+          <select id="folder-filter" onchange="currentPage=1; renderCatalog();" class="bg-transparent font-bold cursor-pointer outline-none uppercase">
+            <option value="ALL">ALL FOLDERS</option>
           </select>
         </div>
+
+        <!-- BATCH SELECT / REORDER MODE TOGGLE -->
+        <button id="batch-mode-btn" onclick="toggleBatchMode()" class="px-3 py-2.5 border-2 border-ink bg-canvas hover:bg-ink hover:text-surface uppercase flex items-center gap-2">
+          <i data-lucide="check-square" class="w-4 h-4"></i>
+          <span id="batch-mode-text">SELECT / REORDER</span>
+        </button>
       </div>
+    </div>
+
+    <!-- BATCH ACTION BAR (Hidden until Select Mode active) -->
+    <div id="batch-action-bar" class="hidden bg-accent text-surface border-2 border-ink p-3 mt-3 flex items-center justify-between font-mono text-xs font-bold uppercase archival-shadow">
+      <div class="flex items-center gap-4">
+        <label class="flex items-center gap-2 cursor-pointer bg-surface text-ink px-3 py-1.5 border border-ink">
+          <input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this.checked)">
+          <span>SELECT ALL ON PAGE</span>
+        </label>
+        <span id="selected-count-text">0 SELECTED</span>
+      </div>
+      <button onclick="deleteSelectedItems()" class="bg-surface text-accent hover:bg-ink hover:text-surface px-4 py-1.5 border border-ink font-bold flex items-center gap-2">
+        <i data-lucide="trash-2" class="w-4 h-4"></i> DELETE SELECTED
+      </button>
+    </div>
+  </section>
+
+  <!-- PAGINATION TOP BAR -->
+  <section class="max-w-7xl mx-auto px-6 py-2 flex items-center justify-between font-mono text-xs">
+    <div id="pagination-info" class="text-subtle font-bold">Showing 0-0 of 0 units</div>
+    <div id="pagination-controls" class="flex items-center gap-2 font-bold">
+      <!-- Generated via JS -->
     </div>
   </section>
 
   <!-- MAIN CATALOG GRID -->
-  <main class="max-w-7xl mx-auto px-6 py-6">
+  <main class="max-w-7xl mx-auto px-6 py-2">
     <div id="catalog-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       <!-- Cards rendered via JS -->
     </div>
@@ -115,12 +184,12 @@
       <i data-lucide="camera" class="w-16 h-16 mx-auto text-subtle mb-4 stroke-1"></i>
       <h3 class="text-2xl font-bold font-mono uppercase tracking-wider">Archive Empty</h3>
       <p class="text-subtle font-mono text-sm mt-2 max-w-md mx-auto">
-        No diecast items found. Click 'IMPORT PHOTOS' above to upload photos and auto-fill specs + 1:1 real car history facts!
+        No diecast items found. Click '+ FILES' or '+ FOLDER' above to upload photos!
       </p>
     </div>
   </main>
 
-  <!-- MODAL: CAR DETAILS & 1:1 HISTORY -->
+  <!-- MODAL: CAR DETAILS & EDIT -->
   <div id="detail-modal" class="hidden fixed inset-0 bg-ink/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-surface border-4 border-ink max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 relative archival-shadow-lg">
       <button onclick="closeModal('detail-modal')" class="absolute top-6 right-6 p-2 bg-canvas border-2 border-ink hover:bg-ink hover:text-surface">
@@ -136,10 +205,11 @@
 
           <div class="flex flex-col justify-between">
             <div>
-              <div class="flex items-center gap-2 font-mono text-xs font-bold text-accent uppercase mb-2">
-                <span id="detail-brand"></span> • <span id="detail-scale"></span>
+              <div class="flex items-center justify-between font-mono text-xs font-bold text-accent uppercase mb-2">
+                <span id="detail-brand"></span>
+                <span id="detail-folder-tag" class="bg-canvas text-ink px-2 py-0.5 border border-ink"></span>
               </div>
-              <h2 id="detail-title" class="text-4xl font-black uppercase font-display leading-tight"></h2>
+              <h2 id="detail-title" class="text-3xl font-normal uppercase font-display leading-tight"></h2>
               
               <div class="mt-6 space-y-2 font-mono text-sm border-t-2 border-b-2 border-ink py-4">
                 <div class="flex justify-between"><span class="text-subtle">CAR MAKE:</span> <span id="detail-make" class="font-bold"></span></div>
@@ -147,7 +217,6 @@
                 <div class="flex justify-between"><span class="text-subtle">YEAR:</span> <span id="detail-year" class="font-bold"></span></div>
               </div>
 
-              <!-- 1:1 History Nugget -->
               <div class="mt-6 bg-canvas border-2 border-ink p-4">
                 <div class="flex items-center gap-2 font-mono text-xs font-bold uppercase text-ink mb-2">
                   <i data-lucide="book-open" class="w-4 h-4 text-accent"></i>
@@ -158,7 +227,7 @@
             </div>
 
             <div class="mt-8 flex flex-wrap gap-2">
-              <button id="open-poster-btn" class="flex-1 bg-ink text-surface py-3 px-4 font-mono text-xs font-bold uppercase tracking-wider hover:bg-accent flex items-center justify-center gap-2">
+              <button id="open-poster-btn" class="flex-1 bg-ink text-surface py-3 px-4 font-mono text-xs font-bold uppercase hover:bg-accent flex items-center justify-center gap-2">
                 <i data-lucide="sparkles" class="w-4 h-4"></i> Poster Studio
               </button>
               <button onclick="enableEditMode()" class="bg-canvas border-2 border-ink py-3 px-4 font-mono text-xs font-bold uppercase hover:bg-ink hover:text-surface flex items-center gap-2">
@@ -174,20 +243,20 @@
 
       <!-- EDIT MODE -->
       <div id="modal-edit-mode" class="hidden mt-4">
-        <h3 class="text-2xl font-black font-display uppercase mb-4 border-b-2 border-ink pb-2">Edit Casting Specs & 1:1 History</h3>
+        <h3 class="text-2xl font-black font-display uppercase mb-4 border-b-2 border-ink pb-2">Edit Casting Specs</h3>
         <div class="space-y-4 font-mono text-xs">
           <div>
-            <label class="block text-subtle font-bold mb-1">CASTING NAME</label>
-            <input type="text" id="edit-title" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
+            <label class="block text-subtle font-bold mb-1">TITLE / CASTING NAME</label>
+            <input type="text" id="edit-title" class="w-full bg-canvas border-2 border-ink p-2 font-normal text-base uppercase">
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-subtle font-bold mb-1">DIECAST BRAND</label>
+              <label class="block text-subtle font-bold mb-1">BRAND</label>
               <input type="text" id="edit-brand" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
             </div>
             <div>
-              <label class="block text-subtle font-bold mb-1">SCALE</label>
-              <input type="text" id="edit-scale" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
+              <label class="block text-subtle font-bold mb-1">FOLDER TAG</label>
+              <input type="text" id="edit-folder" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
             </div>
           </div>
           <div class="grid grid-cols-3 gap-4">
@@ -205,7 +274,7 @@
             </div>
           </div>
           <div>
-            <label class="block text-subtle font-bold mb-1">1:1 REAL AUTOMOBILE HISTORY FACT</label>
+            <label class="block text-subtle font-bold mb-1">1:1 REAL AUTOMOBILE HISTORY</label>
             <textarea id="edit-history" rows="4" class="w-full bg-canvas border-2 border-ink p-2 font-sans text-sm font-semibold"></textarea>
           </div>
           <div class="flex gap-3 pt-2">
@@ -231,7 +300,6 @@
         </button>
       </div>
 
-      <!-- CANVAS PREVIEW AREA -->
       <div class="flex justify-center bg-canvas border-2 border-ink p-4 md:p-8 overflow-x-auto">
         <div id="poster-canvas" class="w-[450px] min-h-[580px] bg-[#FAF8F5] border-4 border-ink p-8 flex flex-col justify-between text-ink relative box-border">
           <div>
@@ -240,14 +308,14 @@
                 <p id="poster-spec-num" class="font-mono text-xs font-black tracking-widest text-accent uppercase"></p>
                 <h1 id="poster-make" class="text-4xl font-black font-display tracking-tight uppercase leading-none mt-1"></h1>
               </div>
-              <span id="poster-scale" class="font-mono text-2xl font-black border-2 border-ink px-2 py-1 bg-surface"></span>
+              <span id="poster-folder" class="font-mono text-sm font-bold border-2 border-ink px-2 py-1 bg-surface"></span>
             </div>
 
             <div class="my-6 aspect-[4/3] flex items-center justify-center p-4 bg-surface border-2 border-ink">
               <img id="poster-img" src="" class="max-h-52 object-contain">
             </div>
 
-            <h2 id="poster-title" class="text-3xl font-black uppercase tracking-tight leading-tight font-display border-b-2 border-ink pb-2"></h2>
+            <h2 id="poster-title" class="text-2xl font-normal uppercase font-display border-b-2 border-ink pb-2"></h2>
           </div>
 
           <div class="mt-4 space-y-4">
@@ -255,11 +323,567 @@
             
             <div class="flex justify-between items-end border-t-2 border-ink pt-3 font-mono text-[10px] text-subtle font-bold uppercase">
               <div id="poster-brand"></div>
-              <div>CULTURE ARCHIVE / DIECAST INDEX</div>
+              <div>COLLECTOR INDEX ARCHIVE</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- EXPORT ACTION -->
-      <div class="mt-6 flex j
+      <div class="mt-6 flex justify-end gap-4">
+        <button onclick="downloadPoster()" class="bg-accent hover:bg-ink text-surface px-8 py-4 font-mono font-bold text-sm tracking-wider uppercase flex items-center gap-3 border-2 border-ink archival-shadow">
+          <i data-lucide="download" class="w-5 h-5"></i> Export High-Res PNG
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT APP ARCHITECTURE -->
+  <script>
+    let db;
+    let catalog = [];
+    let selectedCar = null;
+    let selectedIds = new Set();
+    let isBatchMode = false;
+    let draggedCarId = null;
+
+    // PAGINATION STATE (Handles 4000+ photos cleanly)
+    let currentPage = 1;
+    const itemsPerPage = 36;
+
+    // OFFLINE AUTOMOTIVE KNOWLEDGE BASE
+    const realCarKnowledgeBase = [
+      { keywords: ['skyline', 'r34', 'gt-r', 'gtr', 'nissan'], make: 'Nissan', name: 'Nissan Skyline GT-R (R34)', history: 'The 1:1 R34 GT-R earned the nickname "Godzilla". Featuring an ATTESA E-TS AWD system and twin-turbo RB26DETT engine, it dominated touring car racing.' },
+      { keywords: ['porsche', '911', 'gt3', 'carrera'], make: 'Porsche', name: 'Porsche 911 Carrera', history: 'The 1:1 Porsche 911 has maintained its rear-engine layout since 1963, leading to decades of Le Mans endurance motorsport triumphs.' },
+      { keywords: ['charger', 'daytona', 'dodge'], make: 'Dodge', name: '1969 Dodge Charger Daytona', history: 'The 1:1 Charger Daytona was engineered for NASCAR. Its 23-inch tail wing helped it become the first car in NASCAR history to break 200 mph.' },
+      { keywords: ['gt40', 'ford gt', 'ford'], make: 'Ford', name: 'Ford GT40 Mk II', history: 'Built specifically to defeat Ferrari at Le Mans, achieving a historic 1-2-3 finish in 1966.' },
+      { keywords: ['rx7', 'rx-7', 'mazda', 'rotary'], make: 'Mazda', name: 'Mazda RX-7 FD3S', history: 'Powered by a twin-turbo Wankel rotary engine, achieving a 50:50 weight distribution and celebrated design balance.' },
+      { keywords: ['supra', 'mk4', 'toyota'], make: 'Toyota', name: 'Toyota Supra Mk4', history: 'Gained legendary status due to its bulletproof twin-turbo 2JZ-GTE engine capable of extreme tuning.' }
+    ];
+
+    // RENAME ARCHIVE TITLE
+    function loadArchiveTitle() {
+      const savedTitle = localStorage.getItem('archive_title') || 'APEX ARCHIVE';
+      document.getElementById('archive-title-display').innerText = savedTitle;
+    }
+
+    function renameArchive() {
+      const current = document.getElementById('archive-title-display').innerText;
+      const newTitle = prompt("Rename your diecast collection archive:", current);
+      if (newTitle && newTitle.trim()) {
+        const clean = newTitle.trim().toUpperCase();
+        localStorage.setItem('archive_title', clean);
+        document.getElementById('archive-title-display').innerText = clean;
+      }
+    }
+
+    // INDEXED DB DATABASE INIT
+    const request = indexedDB.open("DiecastCatalogDB_v3", 1);
+    request.onupgradeneeded = (e) => {
+      db = e.target.result;
+      if (!db.objectStoreNames.contains("cars")) {
+        db.createObjectStore("cars", { keyPath: "id" });
+      }
+    };
+    request.onsuccess = (e) => {
+      db = e.target.result;
+      loadArchiveTitle();
+      loadFromDB();
+    };
+
+    function loadFromDB() {
+      const tx = db.transaction("cars", "readonly");
+      const store = tx.objectStore("cars");
+      const getAll = store.getAll();
+      getAll.onsuccess = () => {
+        catalog = getAll.result.sort((a,b) => (a.sortOrder ?? a.createdAt) - (b.sortOrder ?? b.createdAt));
+        updateFilterOptions();
+        renderCatalog();
+      };
+    }
+
+    function saveToDB(car) {
+      const tx = db.transaction("cars", "readwrite");
+      tx.objectStore("cars").put(car);
+      tx.oncomplete = () => loadFromDB();
+    }
+
+    function saveMultipleToDB(carArray) {
+      const tx = db.transaction("cars", "readwrite");
+      const store = tx.objectStore("cars");
+      carArray.forEach(car => store.put(car));
+      tx.oncomplete = () => loadFromDB();
+    }
+
+    function deleteMultipleFromDB(idArray) {
+      const tx = db.transaction("cars", "readwrite");
+      const store = tx.objectStore("cars");
+      idArray.forEach(id => store.delete(id));
+      tx.oncomplete = () => {
+        selectedIds.clear();
+        updateSelectedCountText();
+        loadFromDB();
+      };
+    }
+
+    // AUTO DATA GENERATOR
+    function getOfflineCarData(file, isFolderUpload) {
+      const filename = file.name;
+      const cleanName = filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ").toLowerCase();
+      
+      let folderName = "";
+      if (isFolderUpload && file.webkitRelativePath) {
+        const parts = file.webkitRelativePath.split('/');
+        if (parts.length > 1) {
+          folderName = parts[0]; // Top level folder name
+        }
+      }
+
+      const match = realCarKnowledgeBase.find(item => 
+        item.keywords.some(kw => cleanName.includes(kw))
+      );
+
+      const defaultBrands = ["Mini GT", "Kaido House", "AutoArt", "Matchbox", "Tarmac Works", "Inno64", "Tomica"];
+      const randomBrand = defaultBrands[Math.floor(Math.random() * defaultBrands.length)];
+
+      const formattedTitle = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+
+      if (match) {
+        return {
+          castingName: match.name,
+          brand: randomBrand,
+          folderTag: folderName,
+          carMake: match.make,
+          releaseYear: 1995 + Math.floor(Math.random() * 28),
+          color: "Collector Edition Livery",
+          historyNugget: match.history
+        };
+      }
+
+      return {
+        castingName: formattedTitle || "Custom Model",
+        brand: randomBrand,
+        folderTag: folderName,
+        carMake: formattedTitle.split(' ')[0] || "Automotive",
+        releaseYear: new Date().getFullYear(),
+        color: "Standard Finish",
+        historyNugget: `The 1:1 ${formattedTitle} represents a engineering benchmark, celebrated by automotive enthusiasts worldwide.`
+      };
+    }
+
+    // UPLOAD PIPELINE WITH PROGRESS BAR
+    async function handleFileUpload(event, isFolder) {
+      const files = Array.from(event.target.files).filter(f => f.type.startsWith('image/'));
+      if (!files.length) return;
+
+      const overlay = document.getElementById("upload-progress-overlay");
+      const statusText = document.getElementById("upload-status-text");
+      const progressBar = document.getElementById("upload-progress-bar");
+
+      overlay.classList.remove("hidden");
+      progressBar.style.width = "0%";
+
+      const newCars = [];
+      const startTime = Date.now();
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        statusText.innerText = `Processing ${i + 1} of ${files.length} items...`;
+        progressBar.style.width = `${Math.round(((i + 1) / files.length) * 100)}%`;
+
+        const base64 = await toBase64(file);
+        const autoData = getOfflineCarData(file, isFolder);
+
+        newCars.push({
+          id: 'CAR_' + (startTime + i) + '_' + Math.random().toString(36).substr(2, 4),
+          image: base64,
+          castingName: autoData.castingName,
+          brand: autoData.brand,
+          folderTag: autoData.folderTag,
+          carMake: autoData.carMake,
+          releaseYear: autoData.releaseYear,
+          color: autoData.color,
+          historyNugget: autoData.historyNugget,
+          sortOrder: startTime + i,
+          createdAt: startTime + i
+        });
+
+        // Yield to browser UI thread every 10 images to prevent freezing
+        if (i % 10 === 0) {
+          await new Promise(r => setTimeout(r, 10));
+        }
+      }
+
+      saveMultipleToDB(newCars);
+      overlay.classList.add("hidden");
+      event.target.value = "";
+    }
+
+    // RENDER CATALOG GRID WITH PAGINATION
+    function getFilteredCatalog() {
+      const search = document.getElementById("search-box").value.toLowerCase().trim();
+      const brandFilter = document.getElementById("brand-filter").value;
+      const folderFilter = document.getElementById("folder-filter").value;
+
+      return catalog.filter(c => {
+        const matchesSearch = !search || 
+                              c.castingName.toLowerCase().includes(search) ||
+                              c.carMake.toLowerCase().includes(search) ||
+                              c.brand.toLowerCase().includes(search) ||
+                              (c.folderTag && c.folderTag.toLowerCase().includes(search)) ||
+                              c.color.toLowerCase().includes(search) ||
+                              c.historyNugget.toLowerCase().includes(search);
+
+        const matchesBrand = brandFilter === "ALL" || c.brand === brandFilter;
+        const matchesFolder = folderFilter === "ALL" || (c.folderTag || "UNGROUPED") === folderFilter;
+
+        return matchesSearch && matchesBrand && matchesFolder;
+      });
+    }
+
+    function renderCatalog() {
+      const filtered = getFilteredCatalog();
+      const totalUnits = filtered.length;
+      const totalPages = Math.ceil(totalUnits / itemsPerPage) || 1;
+
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = Math.min(startIndex + itemsPerPage, totalUnits);
+      const pageItems = filtered.slice(startIndex, endIndex);
+
+      // Pagination UI update
+      document.getElementById("pagination-info").innerText = totalUnits > 0 
+        ? `Showing ${startIndex + 1}-${endIndex} of ${totalUnits} units`
+        : `0 units`;
+
+      renderPaginationControls(totalPages);
+
+      const grid = document.getElementById("catalog-grid");
+      const emptyState = document.getElementById("empty-state");
+
+      if (totalUnits === 0) {
+        grid.innerHTML = "";
+        emptyState.classList.remove("hidden");
+        return;
+      }
+
+      emptyState.classList.add("hidden");
+
+      grid.innerHTML = pageItems.map((car, idx) => {
+        const isChecked = selectedIds.has(car.id);
+        const folderBadge = car.folderTag ? `<span class="bg-canvas border border-ink px-2 py-0.5 font-mono text-[10px] uppercase font-bold">📁 ${car.folderTag}</span>` : '';
+
+        return `
+          <div 
+            draggable="${isBatchMode ? 'true' : 'false'}"
+            ondragstart="handleDragStart(event, '${car.id}')"
+            ondragover="handleDragOver(event)"
+            ondrop="handleDrop(event, '${car.id}')"
+            onclick="handleCardClick('${car.id}')"
+            class="bg-surface border-2 border-ink cursor-pointer hover:-translate-y-1 transition-transform archival-shadow flex flex-col justify-between relative group ${isChecked ? 'ring-4 ring-accent' : ''}"
+          >
+            <!-- BATCH CHECKBOX -->
+            ${isBatchMode ? `
+              <div class="absolute top-3 left-3 z-20">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelectItem('${car.id}')" class="w-5 h-5 accent-accent cursor-pointer">
+              </div>
+            ` : ''}
+
+            <div>
+              <div class="border-b-2 border-ink px-4 py-2 bg-canvas flex justify-between items-center font-mono text-xs font-bold uppercase tracking-wider">
+                <span class="text-accent">${car.brand}</span>
+                ${folderBadge}
+              </div>
+
+              <div class="aspect-[4/3] bg-canvas border-b-2 border-ink flex items-center justify-center p-2">
+                <img src="${car.image}" alt="${car.castingName}" class="w-full h-full object-contain" loading="lazy">
+              </div>
+
+              <div class="p-4">
+                <!-- UN-BOLDED TITLE -->
+                <h2 class="text-xl font-normal uppercase font-display leading-tight text-ink">${car.castingName}</h2>
+                
+                <div class="mt-3 flex items-center justify-between text-xs font-mono text-subtle border-t border-borderLine pt-2">
+                  <span>MAKE: ${car.carMake}</span>
+                  <span>${car.releaseYear}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 pt-0">
+              <button onclick="event.stopPropagation(); openPosterModal('${car.id}')" class="w-full py-2 bg-canvas border border-ink hover:bg-ink hover:text-surface font-mono font-bold text-xs uppercase flex items-center justify-center gap-2">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-accent"></i> Poster Studio
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function renderPaginationControls(totalPages) {
+      const container = document.getElementById("pagination-controls");
+      if (totalPages <= 1) {
+        container.innerHTML = "";
+        return;
+      }
+
+      container.innerHTML = `
+        <button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled class="opacity-30"' : 'class="hover:text-accent"'}><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+        <span>PAGE ${currentPage} OF ${totalPages}</span>
+        <button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled class="opacity-30"' : 'class="hover:text-accent"'}><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+      `;
+    }
+
+    function changePage(page) {
+      currentPage = page;
+      renderCatalog();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function updateFilterOptions() {
+      const brandSelect = document.getElementById("brand-filter");
+      const folderSelect = document.getElementById("folder-filter");
+
+      const currBrand = brandSelect.value;
+      const currFolder = folderSelect.value;
+
+      const brands = ['ALL', ...new Set(catalog.map(c => c.brand))];
+      const folders = ['ALL', ...new Set(catalog.map(c => c.folderTag || "UNGROUPED"))];
+
+      brandSelect.innerHTML = brands.map(b => `<option value="${b}" ${b === currBrand ? 'selected' : ''}>${b}</option>`).join('');
+      folderSelect.innerHTML = folders.map(f => `<option value="${f}" ${f === currFolder ? 'selected' : ''}>${f}</option>`).join('');
+    }
+
+    // DICE PICK (RANDOM CAR)
+    function pickRandomCar() {
+      if (!catalog.length) {
+        alert("Archive is empty! Import photos first.");
+        return;
+      }
+      const randomCar = catalog[Math.floor(Math.random() * catalog.length)];
+      openDetailModal(randomCar.id);
+    }
+
+    // DRAG AND DROP REORDERING
+    function handleDragStart(e, id) {
+      draggedCarId = id;
+      e.target.classList.add('card-dragging');
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+    }
+
+    function handleDrop(e, targetId) {
+      e.preventDefault();
+      if (!draggedCarId || draggedCarId === targetId) return;
+
+      const draggedIdx = catalog.findIndex(c => c.id === draggedCarId);
+      const targetIdx = catalog.findIndex(c => c.id === targetId);
+
+      if (draggedIdx > -1 && targetIdx > -1) {
+        const [movedCar] = catalog.splice(draggedIdx, 1);
+        catalog.splice(targetIdx, 0, movedCar);
+
+        // Reassign sort orders
+        catalog.forEach((car, index) => {
+          car.sortOrder = index;
+        });
+
+        saveMultipleToDB(catalog);
+      }
+    }
+
+    // BATCH MODE & SELECT ACTIONS
+    function toggleBatchMode() {
+      isBatchMode = !isBatchMode;
+      const btnText = document.getElementById("batch-mode-text");
+      const actionbar = document.getElementById("batch-action-bar");
+
+      if (isBatchMode) {
+        btnText.innerText = "EXIT SELECT MODE";
+        actionbar.classList.remove("hidden");
+      } else {
+        btnText.innerText = "SELECT / REORDER";
+        actionbar.classList.add("hidden");
+        selectedIds.clear();
+      }
+      renderCatalog();
+    }
+
+    function handleCardClick(id) {
+      if (isBatchMode) {
+        toggleSelectItem(id);
+      } else {
+        openDetailModal(id);
+      }
+    }
+
+    function toggleSelectItem(id) {
+      if (selectedIds.has(id)) {
+        selectedIds.delete(id);
+      } else {
+        selectedIds.add(id);
+      }
+      updateSelectedCountText();
+      renderCatalog();
+    }
+
+    function toggleSelectAll(checked) {
+      const filtered = getFilteredCatalog();
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const pageItems = filtered.slice(startIndex, startIndex + itemsPerPage);
+
+      pageItems.forEach(car => {
+        if (checked) selectedIds.add(car.id);
+        else selectedIds.delete(car.id);
+      });
+
+      updateSelectedCountText();
+      renderCatalog();
+    }
+
+    function updateSelectedCountText() {
+      document.getElementById("selected-count-text").innerText = `${selectedIds.size} SELECTED`;
+    }
+
+    function deleteSelectedItems() {
+      if (selectedIds.size === 0) return;
+      if (confirm(`Delete ${selectedIds.size} selected items from your archive?`)) {
+        deleteMultipleFromDB(Array.from(selectedIds));
+      }
+    }
+
+    // MODAL & DETAIL EDITING
+    function openDetailModal(id) {
+      selectedCar = catalog.find(c => c.id === id);
+      if (!selectedCar) return;
+
+      cancelEditMode();
+
+      document.getElementById("detail-img").src = selectedCar.image;
+      document.getElementById("detail-brand").innerText = selectedCar.brand;
+      document.getElementById("detail-folder-tag").innerText = selectedCar.folderTag ? `📁 ${selectedCar.folderTag}` : '';
+      document.getElementById("detail-title").innerText = selectedCar.castingName;
+      document.getElementById("detail-make").innerText = selectedCar.carMake;
+      document.getElementById("detail-color").innerText = selectedCar.color;
+      document.getElementById("detail-year").innerText = selectedCar.releaseYear;
+      document.getElementById("detail-history").innerText = `"${selectedCar.historyNugget}"`;
+
+      document.getElementById("delete-btn").onclick = () => {
+        if(confirm("Delete item from archive?")) deleteMultipleFromDB([selectedCar.id]);
+      };
+      document.getElementById("open-poster-btn").onclick = () => {
+        closeModal('detail-modal');
+        openPosterModal(selectedCar.id);
+      };
+
+      document.getElementById("detail-modal").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function enableEditMode() {
+      document.getElementById("edit-title").value = selectedCar.castingName;
+      document.getElementById("edit-brand").value = selectedCar.brand;
+      document.getElementById("edit-folder").value = selectedCar.folderTag || '';
+      document.getElementById("edit-make").value = selectedCar.carMake;
+      document.getElementById("edit-color").value = selectedCar.color;
+      document.getElementById("edit-year").value = selectedCar.releaseYear;
+      document.getElementById("edit-history").value = selectedCar.historyNugget;
+
+      document.getElementById("modal-view-mode").classList.add("hidden");
+      document.getElementById("modal-edit-mode").classList.remove("hidden");
+    }
+
+    function cancelEditMode() {
+      document.getElementById("modal-view-mode").classList.remove("hidden");
+      document.getElementById("modal-edit-mode").classList.add("hidden");
+    }
+
+    function saveEditMode() {
+      selectedCar.castingName = document.getElementById("edit-title").value || selectedCar.castingName;
+      selectedCar.brand = document.getElementById("edit-brand").value || selectedCar.brand;
+      selectedCar.folderTag = document.getElementById("edit-folder").value || '';
+      selectedCar.carMake = document.getElementById("edit-make").value || selectedCar.carMake;
+      selectedCar.color = document.getElementById("edit-color").value || selectedCar.color;
+      selectedCar.releaseYear = parseInt(document.getElementById("edit-year").value) || selectedCar.releaseYear;
+      selectedCar.historyNugget = document.getElementById("edit-history").value || selectedCar.historyNugget;
+
+      saveToDB(selectedCar);
+      openDetailModal(selectedCar.id);
+    }
+
+    // POSTER STUDIO
+    function openPosterModal(id) {
+      selectedCar = catalog.find(c => c.id === id);
+      if (!selectedCar) return;
+
+      document.getElementById("poster-spec-num").innerText = `SPECIMEN NO. #${selectedCar.id.slice(-4)}`;
+      document.getElementById("poster-make").innerText = selectedCar.carMake;
+      document.getElementById("poster-folder").innerText = selectedCar.folderTag ? `📁 ${selectedCar.folderTag}` : 'ARCHIVE';
+      document.getElementById("poster-img").src = selectedCar.image;
+      document.getElementById("poster-title").innerText = selectedCar.castingName;
+      document.getElementById("poster-history").innerText = `"${selectedCar.historyNugget}"`;
+      document.getElementById("poster-brand").innerText = `BRAND: ${selectedCar.brand}`;
+
+      document.getElementById("poster-modal").classList.remove("hidden");
+    }
+
+    function downloadPoster() {
+      const target = document.getElementById("poster-canvas");
+      html2canvas(target, { scale: 3 }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `${selectedCar.castingName.replace(/\s+/g, '_')}_Poster.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+      });
+    }
+
+    // BACKUP & RESTORE JSON
+    function exportBackup() {
+      if (!catalog.length) return alert("Nothing to export!");
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(catalog));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `Diecast_Archive_Backup_${Date.now()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function importBackup(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          if (Array.isArray(importedData)) {
+            saveMultipleToDB(importedData);
+            alert(`Successfully restored ${importedData.length} items to your collection!`);
+          }
+        } catch(err) {
+          alert("Invalid backup file format!");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add("hidden");
+    }
+
+    function toBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+      });
+    }
+  </script>
+</body>
+</html>
