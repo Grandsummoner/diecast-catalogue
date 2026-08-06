@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apex Archive — Diecast Collector Index</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- html2canvas for Poster Exports -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            canvas: '#FAF8F5',
+            ink: '#111111',
+            subtle: '#666666',
+            accent: '#D9381E', // Racing Red
+            surface: '#FFFFFF',
+            borderLine: '#E2DFD8'
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['Space Mono', 'monospace'],
+            display: ['Impact', 'Arial Black', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { background-color: #FAF8F5; color: #111111; }
+    /* Hard crisp shadows for tactile archival look */
+    .archival-shadow { box-shadow: 4px 4px 0px 0px #111111; }
+    .archival-shadow-lg { box-shadow: 8px 8px 0px 0px #111111; }
+  </style>
+</head>
+<body class="font-sans antialiased pb-20">
+
+  <!-- HEADER -->
+  <header class="border-b-2 border-ink px-6 py-8 bg-surface">
+    <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6" style="max-width: 80rem; margin: 0 auto;">
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 w-full">
+        <div>
+          <div class="flex items-center gap-2 text-accent font-mono text-sm tracking-widest uppercase font-bold mb-1">
+            <span class="inline-block w-2 h-2 bg-accent"></span>
+            Index System v2.5 • Single-User Local Archival
+          </div>
+          <h1 class="text-5xl md:text-6xl font-black tracking-tight uppercase font-display">
+            Apex Archive
+          </h1>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <div class="text-right border-r-2 border-borderLine pr-4 font-mono">
+            <div id="unit-count" class="text-3xl font-bold leading-none">0</div>
+            <div class="text-xs text-subtle tracking-wider uppercase mt-1">Units Saved</div>
+          </div>
+
+          <label class="cursor-pointer bg-ink hover:bg-accent text-surface px-6 py-4 flex items-center gap-3 font-mono font-bold tracking-wider text-sm transition-colors border-2 border-ink archival-shadow">
+            <i data-lucide="plus" class="w-5 h-5"></i>
+            <span id="import-btn-text">IMPORT PHOTOS</span>
+            <input type="file" id="photo-input" multiple accept="image/*" class="hidden" onchange="handleFileUpload(event)">
+          </label>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTROLS & SEARCH BAR -->
+  <section class="max-w-7xl mx-auto px-6 pt-8 pb-4" style="max-width: 80rem;">
+    <div class="bg-surface border-2 border-ink p-4 flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between archival-shadow">
+      
+      <!-- Search Input -->
+      <div class="relative flex-1">
+        <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-subtle"></i>
+        <input 
+          type="text" 
+          id="search-box"
+          placeholder="SEARCH BY CASTING, BRAND, OR CAR MAKE..."
+          oninput="renderCatalog()"
+          class="w-full bg-canvas border-2 border-borderLine pl-12 pr-4 py-3 font-mono text-base font-bold focus:border-ink outline-none uppercase tracking-wide placeholder:text-subtle/50"
+        />
+      </div>
+
+      <!-- Filters -->
+      <div class="flex flex-wrap items-center gap-3 font-mono text-xs font-bold">
+        <div class="flex items-center gap-2 bg-canvas px-3 py-3 border border-borderLine">
+          <span>BRAND:</span>
+          <select id="brand-filter" onchange="renderCatalog()" class="bg-transparent font-bold cursor-pointer outline-none uppercase">
+            <option value="ALL">ALL BRANDS</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2 bg-canvas px-3 py-3 border border-borderLine">
+          <span>SCALE:</span>
+          <select id="scale-filter" onchange="renderCatalog()" class="bg-transparent font-bold cursor-pointer outline-none uppercase">
+            <option value="ALL">ALL SCALES</option>
+          </select>
+        </div>
+
+        <button onclick="setApiKeyPrompt()" class="px-3 py-3 border border-borderLine bg-canvas hover:bg-borderLine uppercase">
+          🔑 <span id="api-status">API Key: Mock Mode</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAIN CATALOG GRID -->
+  <main class="max-w-7xl mx-auto px-6 py-6" style="max-width: 80rem;">
+    <div id="catalog-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <!-- Cards rendered via JS -->
+    </div>
+
+    <div id="empty-state" class="hidden text-center py-24 border-2 border-dashed border-borderLine bg-surface my-6">
+      <i data-lucide="camera" class="w-16 h-16 mx-auto text-subtle mb-4 stroke-1"></i>
+      <h3 class="text-2xl font-bold font-mono uppercase tracking-wider">Archive Empty</h3>
+      <p class="text-subtle font-mono text-sm mt-2 max-w-md mx-auto">
+        No diecast items found. Click 'IMPORT PHOTOS' above to upload photos and auto-extract specs + 1:1 car history.
+      </p>
+    </div>
+  </main>
+
+  <!-- MODAL: CAR DETAILS & 1:1 HISTORY -->
+  <div id="detail-modal" class="hidden fixed inset-0 bg-ink/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-surface border-4 border-ink max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 relative archival-shadow-lg">
+      <button onclick="closeModal('detail-modal')" class="absolute top-6 right-6 p-2 bg-canvas border-2 border-ink hover:bg-ink hover:text-surface">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-2">
+        <div class="border-2 border-ink p-2 bg-canvas flex items-center justify-center">
+          <img id="detail-img" src="" class="max-h-[350px] object-contain">
+        </div>
+
+        <div class="flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 font-mono text-xs font-bold text-accent uppercase mb-2">
+              <span id="detail-brand"></span> • <span id="detail-scale"></span>
+            </div>
+            <h2 id="detail-title" class="text-4xl font-black uppercase font-display leading-tight"></h2>
+            
+            <div class="mt-6 space-y-2 font-mono text-sm border-t-2 border-b-2 border-ink py-4">
+              <div class="flex justify-between"><span class="text-subtle">CAR MAKE:</span> <span id="detail-make" class="font-bold"></span></div>
+              <div class="flex justify-between"><span class="text-subtle">LIVERY/COLOR:</span> <span id="detail-color" class="font-bold"></span></div>
+              <div class="flex justify-between"><span class="text-subtle">YEAR:</span> <span id="detail-year" class="font-bold"></span></div>
+            </div>
+
+            <!-- 1:1 History Nugget -->
+            <div class="mt-6 bg-canvas border-2 border-ink p-4">
+              <div class="flex items-center gap-2 font-mono text-xs font-bold uppercase text-ink mb-2">
+                <i data-lucide="book-open" class="w-4 h-4 text-accent"></i>
+                1:1 Real Automobile History
+              </div>
+              <p id="detail-history" class="font-sans text-sm leading-relaxed text-ink/90 font-medium"></p>
+            </div>
+          </div>
+
+          <div class="mt-8 flex gap-3">
+            <button id="open-poster-btn" class="flex-1 bg-ink text-surface py-3 font-mono text-xs font-bold uppercase tracking-wider hover:bg-accent flex items-center justify-center gap-2">
+              <i data-lucide="sparkles" class="w-4 h-4"></i> Poster Studio
+            </button>
+            <button id="delete-btn" class="p-3 border-2 border-ink hover:bg-red-600 hover:text-white">
+              <i data-lucide="trash-2" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: POSTER STUDIO -->
+  <div id="poster-modal" class="hidden fixed inset-0 bg-ink/90 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-surface border-4 border-ink max-w-4xl w-full p-6 md:p-8 my-8 archival-shadow-lg">
+      <div class="flex justify-between items-center pb-6 mb-6 border-b-2 border-ink">
+        <div>
+          <h3 class="text-2xl font-black font-display uppercase">Poster Studio</h3>
+          <p class="font-mono text-xs text-subtle">Export printable graphic spec sheet cards for social sharing</p>
+        </div>
+        <button onclick="closeModal('poster-modal')" class="p-2 border-2 border-ink hover:bg-ink hover:text-surface">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- CANVAS PREVIEW AREA -->
+      <div class="flex justify-center bg-canvas border-2 border-ink p-4 md:p-8 overflow-x-auto">
+        <div id="poster-canvas" class="w-[450px] min-h-[580px] bg-[#FAF8F5] border-4 border-ink p-8 flex flex-col justify-between text-ink relative box-border">
+          <div>
+            <div class="flex justify-between items-start border-b-4 border-ink pb-4">
+              <div>
+                <p id="poster-spec-num" class="font-mono text-xs font-black tracking-widest text-accent uppercase"></p>
+                <h1 id="poster-make" class="text-4xl font-black font-display tracking-tight uppercase leading-none mt-1"></h1>
+              </div>
+              <span id="poster-scale" class="font-mono text-2xl font-black border-2 border-ink px-2 py-1 bg-surface"></span>
+            </div>
+
+            <div class="my-6 aspect-[4/3] flex items-center justify-center p-4 bg-surface border-2 border-ink">
+              <img id="poster-img" src="" class="max-h-52 object-contain">
+            </div>
+
+            <h2 id="poster-title" class="text-3xl font-black uppercase tracking-tight leading-tight font-display border-b-2 border-ink pb-2"></h2>
+          </div>
+
+          <div class="mt-4 space-y-4">
+            <div id="poster-history" class="bg-surface border-2 border-ink p-3 font-sans text-xs leading-relaxed font-semibold"></div>
+            
+            <div class="flex justify-between items-end border-t-2 border-ink pt-3 font-mono text-[10px] text-subtle font-bold uppercase">
+              <div id="poster-brand"></div>
+              <div>CULTURE ARCHIVE / DIECAST INDEX</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EXPORT ACTION -->
+      <div class="mt-6 flex justify-end gap-4">
+        <button onclick="downloadPoster()" class="bg-accent hover:bg-ink text-surface px-8 py-4 font-mono font-bold text-sm tracking-wider uppercase flex items-center gap-3 border-2 border-ink archival-shadow">
+          <i data-lucide="download" class="w-5 h-5"></i> Export High-Res PNG
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT ARCHITECTURE -->
+  <script>
+    let db;
+    let catalog = [];
+    let selectedCar = null;
+
+    // 1. INDEXED DB INITIALIZATION (Handles thousands of high-res photos locally)
+    const request = indexedDB.open("DiecastCatalogDB", 1);
+    request.onupgradeneeded = (e) => {
+      db = e.target.result;
+      if (!db.objectStoreNames.contains("cars")) {
+        db.createObjectStore("cars", { keyPath: "id" });
+      }
+    };
+    request.onsuccess = (e) => {
+      db = e.target.result;
+      loadFromDB();
+    };
+
+    function loadFromDB() {
+      const tx = db.transaction("cars", "readonly");
+      const store = tx.objectStore("cars");
+      const getAll = store.getAll();
+      getAll.onsuccess = () => {
+        catalog = getAll.result.sort((a,b) => b.createdAt - a.createdAt);
+        updateFilterOptions();
+        renderCatalog();
+      };
+    }
+
+    function saveToDB(car) {
+      const tx = db.transaction("cars", "readwrite");
+      tx.objectStore("cars").put(car);
+      tx.oncomplete = () => loadFromDB();
+    }
+
+    function deleteFromDB(id) {
+      const tx = db.transaction("cars", "readwrite");
+      tx.objectStore("cars").delete(id);
+      tx.oncomplete = () => {
+        closeModal('detail-modal');
+        loadFromDB();
+      };
+    }
+
+    // 2. AI VISION & HISTORY EXTRACTION PIPELINE
+    async function handleFileUpload(event) {
+      const files = Array.from(event.target.files);
+      if (!files.length) return;
+
+      const importBtnText = document.getElementById("import-btn-text");
+      importBtnText.innerText = "ANALYZING...";
+
+      const apiKey = localStorage.getItem("gemini_key");
+
+      for (const file of files) {
+        const base64 = await toBase64(file);
+        let aiData = {};
+
+        if (apiKey) {
+          try {
+            aiData = await callGeminiVision(base64, apiKey);
+          } catch(e) {
+            console.warn("AI extraction fallback to mock", e);
+            aiData = getMockData(file.name);
+          }
+        } else {
+          aiData = getMockData(file.name);
+        }
+
+        const newCar = {
+          id: 'CAR_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          image: base64,
+          castingName: aiData.castingName || "Custom Diecast Model",
+          brand: aiData.brand || "Hot Wheels",
+          scale: aiData.scale || "1:64",
+          carMake: aiData.carMake || "Automotive",
+          releaseYear: aiData.releaseYear || new Date().getFullYear(),
+          color: aiData.color || "Standard Finish",
+          historyNugget: aiData.historyNugget || "No 1:1 real-world history data attached.",
+          createdAt: Date.now()
+        };
+
+        saveToDB(newCar);
+      }
+
+      importBtnText.innerText = "IMPORT PHOTOS";
+      event.target.value = "";
+    }
+
+    function getMockData(filename) {
+      return {
+        castingName: filename.replace(/\.[^/.]+$/, "").toUpperCase() || "1969 Dodge Charger Daytona",
+        brand: "Hot Wheels",
+        scale: "1:64",
+        carMake: "Dodge",
+        releaseYear: 1969,
+        color: "Racing Livery",
+        historyNugget: "The 1:1 Charger Daytona was engineered to win NASCAR. Its massive 23-inch tail wing was designed specifically so the trunk lid could open freely, making it the first NASCAR car to break 200 mph."
+      };
+    }
+
+    async function callGeminiVision(base64Image, apiKey) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const prompt = `Analyze this diecast car. Respond strictly in JSON:
+      {
+        "castingName": "Name of diecast casting",
+        "brand": "Diecast brand like Hot Wheels, Matchbox, Mini GT, Kaido House",
+        "scale": "Estimated scale like 1:64, 1:43, 1:18",
+        "carMake": "Real world car brand e.g. Porsche, Nissan, Ford",
+        "releaseYear": 1970,
+        "color": "Color/Livery description",
+        "historyNugget": "Two sentence fascinating real-world 1:1 history fact about this car model."
+      }`;
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: "image/jpeg", data: base64Image.split(',')[1] } }
+            ]
+          }]
+        })
+      });
+      const data = await res.json();
+      const txt = data.candidates[0].content.parts[0].text;
+      return JSON.parse(txt.match(/\{[\s\S]*\}/)[0]);
+    }
+
+    // 3. RENDER CATALOG GRID & FILTERS
+    function renderCatalog() {
+      const search = document.getElementById("search-box").value.toLowerCase();
+      const brandFilter = document.getElementById("brand-filter").value;
+      const scaleFilter = document.getElementById("scale-filter").value;
+
+      const filtered = catalog.filter(c => {
+        const matchesSearch = c.castingName.toLowerCase().includes(search) ||
+                              c.carMake.toLowerCase().includes(search) ||
+                              c.brand.toLowerCase().includes(search);
+        const matchesBrand = brandFilter === "ALL" || c.brand === brandFilter;
+        const matchesScale = scaleFilter === "ALL" || c.scale === scaleFilter;
+        return matchesSearch && matchesBrand && matchesScale;
+      });
+
+      document.getElementById("unit-count").innerText = catalog.length;
+      const grid = document.getElementById("catalog-grid");
+      const emptyState = document.getElementById("empty-state");
+
+      if (filtered.length === 0) {
+        grid.innerHTML = "";
+        emptyState.classList.remove("hidden");
+        return;
+      }
+
+      emptyState.classList.add("hidden");
+      grid.innerHTML = filtered.map(car => `
+        <div onclick="openDetailModal('${car.id}')" class="bg-surface border-2 border-ink cursor-pointer hover:-translate-y-1 transition-transform archival-shadow flex flex-col justify-between">
+          <div>
+            <div class="border-b-2 border-ink px-4 py-2 bg-canvas flex justify-between items-center font-mono text-xs font-bold uppercase tracking-wider">
+              <span class="text-accent">${car.brand}</span>
+              <span class="bg-ink text-surface px-2 py-0.5">${car.scale}</span>
+            </div>
+            <div class="aspect-[4/3] bg-canvas border-b-2 border-ink flex items-center justify-center p-2">
+              <img src="${car.image}" alt="${car.castingName}" class="w-full h-full object-contain" loading="lazy">
+            </div>
+            <div class="p-4">
+              <h2 class="text-2xl font-black uppercase font-display leading-tight">${car.castingName}</h2>
+              <div class="mt-3 flex items-center justify-between text-xs font-mono text-subtle border-t border-borderLine pt-2">
+                <span>MAKE: ${car.carMake}</span>
+                <span>${car.releaseYear}</span>
+              </div>
+            </div>
+          </div>
+          <div class="p-4 pt-0">
+            <button onclick="event.stopPropagation(); openPosterModal('${car.id}')" class="w-full py-2 bg-canvas border border-ink hover:bg-ink hover:text-surface font-mono font-bold text-xs uppercase flex items-center justify-center gap-2">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-accent"></i> Poster Studio
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function updateFilterOptions() {
+      const brands = ['ALL', ...new Set(catalog.map(c => c.brand))];
+      const scales = ['ALL', ...new Set(catalog.map(c => c.scale))];
+
+      document.getElementById("brand-filter").innerHTML = brands.map(b => `<option value="${b}">${b}</option>`).join('');
+      document.getElementById("scale-filter").innerHTML = scales.map(s => `<option value="${s}">${s}</option>`).join('');
+    }
+
+    // 4. MODALS & POSTER STUDIO
+    function openDetailModal(id) {
+      selectedCar = catalog.find(c => c.id === id);
+      if (!selectedCar) return;
+
+      document.getElementById("detail-img").src = selectedCar.image;
+      document.getElementById("detail-brand").innerText = selectedCar.brand;
+      document.getElementById("detail-scale").innerText = selectedCar.scale;
+      document.getElementById("detail-title").innerText = selectedCar.castingName;
+      document.getElementById("detail-make").innerText = selectedCar.carMake;
+      document.getElementById("detail-color").innerText = selectedCar.color;
+      document.getElementById("detail-year").innerText = selectedCar.releaseYear;
+      document.getElementById("detail-history").innerText = `"${selectedCar.historyNugget}"`;
+
+      document.getElementById("delete-btn").onclick = () => {
+        if(confirm("Delete item from archive?")) deleteFromDB(selectedCar.id);
+      };
+      document.getElementById("open-poster-btn").onclick = () => {
+        closeModal('detail-modal');
+        openPosterModal(selectedCar.id);
+      };
+
+      document.getElementById("detail-modal").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function openPosterModal(id) {
+      selectedCar = catalog.find(c => c.id === id);
+      if (!selectedCar) return;
+
+      document.getElementById("poster-spec-num").innerText = `SPECIMEN NO. #${selectedCar.id.slice(-4)}`;
+      document.getElementById("poster-make").innerText = selectedCar.carMake;
+      document.getElementById("poster-scale").innerText = selectedCar.scale;
+      document.getElementById("poster-img").src = selectedCar.image;
+      document.getElementById("poster-title").innerText = selectedCar.castingName;
+      document.getElementById("poster-history").innerText = `"${selectedCar.historyNugget}"`;
+      document.getElementById("poster-brand").innerText = `BRAND: ${selectedCar.brand}`;
+
+      document.getElementById("poster-modal").classList.remove("hidden");
+    }
+
+    function downloadPoster() {
+      const target = document.getElementById("poster-canvas");
+      html2canvas(target, { scale: 3 }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `${selectedCar.castingName.replace(/\s+/g, '_')}_Poster.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+      });
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add("hidden");
+    }
+
+    function setApiKeyPrompt() {
+      const existing = localStorage.getItem("gemini_key") || "";
+      const k = prompt("Enter Gemini Vision API Key for auto-detection + 1:1 real car history lookup:", existing);
+      if (k !== null) {
+        localStorage.setItem("gemini_key", k);
+        updateApiStatus();
+      }
+    }
+
+    function updateApiStatus() {
+      const k = localStorage.getItem("gemini_key");
+      document.getElementById("api-status").innerText = k ? "API Key: Active" : "API Key: Mock Mode";
+    }
+
+    function toBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+      });
+    }
+
+    // Initialize API Key Display
+    updateApiStatus();
+  </script>
+</body>
+</html>
