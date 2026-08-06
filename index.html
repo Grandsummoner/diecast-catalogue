@@ -55,6 +55,50 @@
     </div>
   </div>
 
+  <!-- MODAL: PRE-UPLOAD BRAND PROMPT -->
+  <div id="brand-select-modal" class="hidden fixed inset-0 bg-ink/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-surface border-4 border-ink max-w-md w-full p-6 archival-shadow-lg relative">
+      <button onclick="closeModal('brand-select-modal')" class="absolute top-4 right-4 p-1 hover:bg-canvas">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <h3 class="text-2xl font-black font-display uppercase mb-2">Select Brand for Batch</h3>
+      <p class="font-mono text-xs text-subtle mb-4">Specify the brand name for this upload batch before selecting files or folders.</p>
+
+      <div class="space-y-4 font-mono text-xs">
+        <div>
+          <label class="block font-bold mb-1">SELECT KNOWN BRAND:</label>
+          <select id="preset-brand-select" onchange="document.getElementById('custom-brand-input').value = this.value" class="w-full bg-canvas border-2 border-ink p-3 font-bold uppercase">
+            <option value="Mini GT">Mini GT</option>
+            <option value="Tomica">Tomica</option>
+            <option value="Kaido House">Kaido House</option>
+            <option value="AutoArt">AutoArt</option>
+            <option value="Matchbox">Matchbox</option>
+            <option value="Tarmac Works">Tarmac Works</option>
+            <option value="Inno64">Inno64</option>
+            <option value="Kyosho">Kyosho</option>
+            <option value="Pop Race">Pop Race</option>
+            <option value="Schuco">Schuco</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold mb-1">OR TYPE CUSTOM BRAND:</label>
+          <input type="text" id="custom-brand-input" value="Mini GT" placeholder="e.g. Spark 43, Majorette" class="w-full bg-canvas border-2 border-ink p-3 font-bold uppercase">
+        </div>
+
+        <button onclick="confirmBrandAndTriggerUpload()" class="w-full bg-accent text-surface py-4 font-bold uppercase border-2 border-ink archival-shadow hover:bg-ink transition-colors flex items-center justify-center gap-2">
+          <span>CONTINUE TO SELECT FILES</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HIDDEN FILE INPUTS -->
+  <input type="file" id="files-input" multiple accept="image/*" class="hidden" onchange="processFileUploads(event, false)">
+  <input type="file" id="folder-input" webkitdirectory directory multiple accept="image/*" class="hidden" onchange="processFileUploads(event, true)">
+
   <!-- HEADER -->
   <header class="border-b-2 border-ink px-6 py-6 bg-surface">
     <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -93,19 +137,17 @@
           <input type="file" accept=".json" class="hidden" onchange="importBackup(event)">
         </label>
 
-        <!-- UPLOAD BUTTONS (FILES VS FOLDER) -->
+        <!-- UPLOAD BUTTONS -->
         <div class="flex items-center gap-2">
-          <label class="cursor-pointer bg-ink hover:bg-accent text-surface px-4 py-3 flex items-center gap-2 font-mono font-bold text-xs uppercase border-2 border-ink archival-shadow">
+          <button onclick="openBrandSelectModal('files')" class="bg-ink hover:bg-accent text-surface px-4 py-3 flex items-center gap-2 font-mono font-bold text-xs uppercase border-2 border-ink archival-shadow">
             <i data-lucide="image" class="w-4 h-4"></i>
             <span>+ FILES</span>
-            <input type="file" id="files-input" multiple accept="image/*" class="hidden" onchange="handleFileUpload(event, false)">
-          </label>
+          </button>
 
-          <label class="cursor-pointer bg-ink hover:bg-accent text-surface px-4 py-3 flex items-center gap-2 font-mono font-bold text-xs uppercase border-2 border-ink archival-shadow">
+          <button onclick="openBrandSelectModal('folder')" class="bg-ink hover:bg-accent text-surface px-4 py-3 flex items-center gap-2 font-mono font-bold text-xs uppercase border-2 border-ink archival-shadow">
             <i data-lucide="folder-plus" class="w-4 h-4"></i>
             <span>+ FOLDER</span>
-            <input type="file" id="folder-input" webkitdirectory directory multiple accept="image/*" class="hidden" onchange="handleFileUpload(event, true)">
-          </label>
+          </button>
         </div>
       </div>
     </div>
@@ -129,6 +171,13 @@
 
       <!-- Filters & Select Mode Toggle -->
       <div class="flex flex-wrap items-center gap-3 font-mono text-xs font-bold">
+        
+        <!-- FAVOURITES TOGGLE FILTER -->
+        <button id="fav-filter-btn" onclick="toggleFavFilter()" class="px-3 py-2.5 border-2 border-ink bg-canvas hover:bg-ink hover:text-surface uppercase flex items-center gap-2">
+          <i data-lucide="star" class="w-4 h-4 text-accent fill-accent"></i>
+          <span id="fav-filter-text">FAVOURITES</span>
+        </button>
+
         <div class="flex items-center gap-2 bg-canvas px-3 py-2.5 border border-borderLine">
           <span>BRAND:</span>
           <select id="brand-filter" onchange="currentPage=1; renderCatalog();" class="bg-transparent font-bold cursor-pointer outline-none uppercase">
@@ -151,7 +200,7 @@
       </div>
     </div>
 
-    <!-- BATCH ACTION BAR (Hidden until Select Mode active) -->
+    <!-- BATCH ACTION BAR -->
     <div id="batch-action-bar" class="hidden bg-accent text-surface border-2 border-ink p-3 mt-3 flex items-center justify-between font-mono text-xs font-bold uppercase archival-shadow">
       <div class="flex items-center gap-4">
         <label class="flex items-center gap-2 cursor-pointer bg-surface text-ink px-3 py-1.5 border border-ink">
@@ -199,7 +248,7 @@
       <!-- VIEW MODE -->
       <div id="modal-view-mode">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-2">
-          <div class="border-2 border-ink p-2 bg-canvas flex items-center justify-center">
+          <div class="border-2 border-ink p-2 bg-canvas flex items-center justify-center relative">
             <img id="detail-img" src="" class="max-h-[350px] object-contain">
           </div>
 
@@ -209,7 +258,13 @@
                 <span id="detail-brand"></span>
                 <span id="detail-folder-tag" class="bg-canvas text-ink px-2 py-0.5 border border-ink"></span>
               </div>
-              <h2 id="detail-title" class="text-3xl font-normal uppercase font-display leading-tight"></h2>
+              
+              <div class="flex items-start justify-between gap-2">
+                <h2 id="detail-title" class="text-3xl font-normal uppercase font-display leading-tight"></h2>
+                <button onclick="toggleFavCurrent()" class="p-1.5 border-2 border-ink bg-canvas hover:bg-ink hover:text-surface">
+                  <i id="detail-fav-star" data-lucide="star" class="w-5 h-5"></i>
+                </button>
+              </div>
               
               <div class="mt-6 space-y-2 font-mono text-sm border-t-2 border-b-2 border-ink py-4">
                 <div class="flex justify-between"><span class="text-subtle">CAR MAKE:</span> <span id="detail-make" class="font-bold"></span></div>
@@ -217,10 +272,16 @@
                 <div class="flex justify-between"><span class="text-subtle">YEAR:</span> <span id="detail-year" class="font-bold"></span></div>
               </div>
 
+              <!-- 1:1 Real History Section -->
               <div class="mt-6 bg-canvas border-2 border-ink p-4">
-                <div class="flex items-center gap-2 font-mono text-xs font-bold uppercase text-ink mb-2">
-                  <i data-lucide="book-open" class="w-4 h-4 text-accent"></i>
-                  1:1 Real Automobile History
+                <div class="flex items-center justify-between font-mono text-xs font-bold uppercase text-ink mb-2">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="book-open" class="w-4 h-4 text-accent"></i>
+                    <span>1:1 Real Automobile History</span>
+                  </div>
+                  <button onclick="fetchWikiHistory()" class="text-[10px] bg-surface border border-ink px-2 py-0.5 hover:bg-ink hover:text-surface flex items-center gap-1">
+                    <i data-lucide="globe" class="w-3 h-3"></i> FETCH WIKI
+                  </button>
                 </div>
                 <p id="detail-history" class="font-sans text-sm leading-relaxed text-ink/90 font-medium"></p>
               </div>
@@ -345,20 +406,12 @@
     let selectedIds = new Set();
     let isBatchMode = false;
     let draggedCarId = null;
+    let isFavFilterOnly = false;
+    let targetUploadType = 'files';
 
-    // PAGINATION STATE (Handles 4000+ photos cleanly)
+    // PAGINATION STATE
     let currentPage = 1;
     const itemsPerPage = 36;
-
-    // OFFLINE AUTOMOTIVE KNOWLEDGE BASE
-    const realCarKnowledgeBase = [
-      { keywords: ['skyline', 'r34', 'gt-r', 'gtr', 'nissan'], make: 'Nissan', name: 'Nissan Skyline GT-R (R34)', history: 'The 1:1 R34 GT-R earned the nickname "Godzilla". Featuring an ATTESA E-TS AWD system and twin-turbo RB26DETT engine, it dominated touring car racing.' },
-      { keywords: ['porsche', '911', 'gt3', 'carrera'], make: 'Porsche', name: 'Porsche 911 Carrera', history: 'The 1:1 Porsche 911 has maintained its rear-engine layout since 1963, leading to decades of Le Mans endurance motorsport triumphs.' },
-      { keywords: ['charger', 'daytona', 'dodge'], make: 'Dodge', name: '1969 Dodge Charger Daytona', history: 'The 1:1 Charger Daytona was engineered for NASCAR. Its 23-inch tail wing helped it become the first car in NASCAR history to break 200 mph.' },
-      { keywords: ['gt40', 'ford gt', 'ford'], make: 'Ford', name: 'Ford GT40 Mk II', history: 'Built specifically to defeat Ferrari at Le Mans, achieving a historic 1-2-3 finish in 1966.' },
-      { keywords: ['rx7', 'rx-7', 'mazda', 'rotary'], make: 'Mazda', name: 'Mazda RX-7 FD3S', history: 'Powered by a twin-turbo Wankel rotary engine, achieving a 50:50 weight distribution and celebrated design balance.' },
-      { keywords: ['supra', 'mk4', 'toyota'], make: 'Toyota', name: 'Toyota Supra Mk4', history: 'Gained legendary status due to its bulletproof twin-turbo 2JZ-GTE engine capable of extreme tuning.' }
-    ];
 
     // RENAME ARCHIVE TITLE
     function loadArchiveTitle() {
@@ -376,8 +429,26 @@
       }
     }
 
+    // PRE-UPLOAD BRAND MODAL
+    function openBrandSelectModal(type) {
+      targetUploadType = type;
+      document.getElementById('brand-select-modal').classList.remove('hidden');
+    }
+
+    function confirmBrandAndTriggerUpload() {
+      const brandVal = document.getElementById('custom-brand-input').value.trim() || 'Mini GT';
+      localStorage.setItem('pending_batch_brand', brandVal);
+      closeModal('brand-select-modal');
+
+      if (targetUploadType === 'files') {
+        document.getElementById('files-input').click();
+      } else {
+        document.getElementById('folder-input').click();
+      }
+    }
+
     // INDEXED DB DATABASE INIT
-    const request = indexedDB.open("DiecastCatalogDB_v3", 1);
+    const request = indexedDB.open("DiecastCatalogDB_v4", 1);
     request.onupgradeneeded = (e) => {
       db = e.target.result;
       if (!db.objectStoreNames.contains("cars")) {
@@ -425,8 +496,8 @@
       };
     }
 
-    // AUTO DATA GENERATOR
-    function getOfflineCarData(file, isFolderUpload) {
+    // AUTO DATA GENERATOR (WITH BATCH BRAND)
+    function getBatchCarData(file, isFolderUpload) {
       const filename = file.name;
       const cleanName = filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ").toLowerCase();
       
@@ -434,44 +505,26 @@
       if (isFolderUpload && file.webkitRelativePath) {
         const parts = file.webkitRelativePath.split('/');
         if (parts.length > 1) {
-          folderName = parts[0]; // Top level folder name
+          folderName = parts[0];
         }
       }
 
-      const match = realCarKnowledgeBase.find(item => 
-        item.keywords.some(kw => cleanName.includes(kw))
-      );
-
-      const defaultBrands = ["Mini GT", "Kaido House", "AutoArt", "Matchbox", "Tarmac Works", "Inno64", "Tomica"];
-      const randomBrand = defaultBrands[Math.floor(Math.random() * defaultBrands.length)];
-
+      const assignedBrand = localStorage.getItem('pending_batch_brand') || 'Mini GT';
       const formattedTitle = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
-
-      if (match) {
-        return {
-          castingName: match.name,
-          brand: randomBrand,
-          folderTag: folderName,
-          carMake: match.make,
-          releaseYear: 1995 + Math.floor(Math.random() * 28),
-          color: "Collector Edition Livery",
-          historyNugget: match.history
-        };
-      }
 
       return {
         castingName: formattedTitle || "Custom Model",
-        brand: randomBrand,
+        brand: assignedBrand,
         folderTag: folderName,
         carMake: formattedTitle.split(' ')[0] || "Automotive",
         releaseYear: new Date().getFullYear(),
         color: "Standard Finish",
-        historyNugget: `The 1:1 ${formattedTitle} represents a engineering benchmark, celebrated by automotive enthusiasts worldwide.`
+        historyNugget: `The 1:1 ${formattedTitle} represents a distinctive milestone in automotive engineering, celebrated by enthusiasts worldwide.`
       };
     }
 
-    // UPLOAD PIPELINE WITH PROGRESS BAR
-    async function handleFileUpload(event, isFolder) {
+    // UPLOAD PIPELINE
+    async function processFileUploads(event, isFolder) {
       const files = Array.from(event.target.files).filter(f => f.type.startsWith('image/'));
       if (!files.length) return;
 
@@ -491,7 +544,7 @@
         progressBar.style.width = `${Math.round(((i + 1) / files.length) * 100)}%`;
 
         const base64 = await toBase64(file);
-        const autoData = getOfflineCarData(file, isFolder);
+        const autoData = getBatchCarData(file, isFolder);
 
         newCars.push({
           id: 'CAR_' + (startTime + i) + '_' + Math.random().toString(36).substr(2, 4),
@@ -503,11 +556,11 @@
           releaseYear: autoData.releaseYear,
           color: autoData.color,
           historyNugget: autoData.historyNugget,
+          isFavorite: false,
           sortOrder: startTime + i,
           createdAt: startTime + i
         });
 
-        // Yield to browser UI thread every 10 images to prevent freezing
         if (i % 10 === 0) {
           await new Promise(r => setTimeout(r, 10));
         }
@@ -518,7 +571,7 @@
       event.target.value = "";
     }
 
-    // RENDER CATALOG GRID WITH PAGINATION
+    // RENDER CATALOG GRID WITH FAVOURITES & PAGINATION
     function getFilteredCatalog() {
       const search = document.getElementById("search-box").value.toLowerCase().trim();
       const brandFilter = document.getElementById("brand-filter").value;
@@ -535,8 +588,9 @@
 
         const matchesBrand = brandFilter === "ALL" || c.brand === brandFilter;
         const matchesFolder = folderFilter === "ALL" || (c.folderTag || "UNGROUPED") === folderFilter;
+        const matchesFav = !isFavFilterOnly || c.isFavorite === true;
 
-        return matchesSearch && matchesBrand && matchesFolder;
+        return matchesSearch && matchesBrand && matchesFolder && matchesFav;
       });
     }
 
@@ -551,7 +605,6 @@
       const endIndex = Math.min(startIndex + itemsPerPage, totalUnits);
       const pageItems = filtered.slice(startIndex, endIndex);
 
-      // Pagination UI update
       document.getElementById("pagination-info").innerText = totalUnits > 0 
         ? `Showing ${startIndex + 1}-${endIndex} of ${totalUnits} units`
         : `0 units`;
@@ -569,7 +622,7 @@
 
       emptyState.classList.add("hidden");
 
-      grid.innerHTML = pageItems.map((car, idx) => {
+      grid.innerHTML = pageItems.map(car => {
         const isChecked = selectedIds.has(car.id);
         const folderBadge = car.folderTag ? `<span class="bg-canvas border border-ink px-2 py-0.5 font-mono text-[10px] uppercase font-bold">📁 ${car.folderTag}</span>` : '';
 
@@ -582,6 +635,11 @@
             onclick="handleCardClick('${car.id}')"
             class="bg-surface border-2 border-ink cursor-pointer hover:-translate-y-1 transition-transform archival-shadow flex flex-col justify-between relative group ${isChecked ? 'ring-4 ring-accent' : ''}"
           >
+            <!-- STAR FAVOURITE TOGGLE -->
+            <button onclick="event.stopPropagation(); toggleFav('${car.id}')" class="absolute top-3 right-3 z-20 p-1.5 bg-surface border border-ink hover:bg-ink hover:text-surface">
+              <i data-lucide="star" class="w-4 h-4 ${car.isFavorite ? 'text-accent fill-accent' : 'text-subtle'}"></i>
+            </button>
+
             <!-- BATCH CHECKBOX -->
             ${isBatchMode ? `
               <div class="absolute top-3 left-3 z-20">
@@ -590,7 +648,7 @@
             ` : ''}
 
             <div>
-              <div class="border-b-2 border-ink px-4 py-2 bg-canvas flex justify-between items-center font-mono text-xs font-bold uppercase tracking-wider">
+              <div class="border-b-2 border-ink px-4 py-2 bg-canvas flex justify-between items-center font-mono text-xs font-bold uppercase tracking-wider pr-10">
                 <span class="text-accent">${car.brand}</span>
                 ${folderBadge}
               </div>
@@ -600,7 +658,6 @@
               </div>
 
               <div class="p-4">
-                <!-- UN-BOLDED TITLE -->
                 <h2 class="text-xl font-normal uppercase font-display leading-tight text-ink">${car.castingName}</h2>
                 
                 <div class="mt-3 flex items-center justify-between text-xs font-mono text-subtle border-t border-borderLine pt-2">
@@ -620,6 +677,58 @@
       }).join('');
 
       lucide.createIcons();
+    }
+
+    function toggleFav(id) {
+      const car = catalog.find(c => c.id === id);
+      if (car) {
+        car.isFavorite = !car.isFavorite;
+        saveToDB(car);
+      }
+    }
+
+    function toggleFavCurrent() {
+      if (selectedCar) {
+        selectedCar.isFavorite = !selectedCar.isFavorite;
+        saveToDB(selectedCar);
+        openDetailModal(selectedCar.id);
+      }
+    }
+
+    function toggleFavFilter() {
+      isFavFilterOnly = !isFavFilterOnly;
+      const btn = document.getElementById("fav-filter-btn");
+      if (isFavFilterOnly) {
+        btn.classList.add("bg-ink", "text-surface");
+      } else {
+        btn.classList.remove("bg-ink", "text-surface");
+      }
+      currentPage = 1;
+      renderCatalog();
+    }
+
+    // LIVE WIKIPEDIA HISTORY FETCH (FREE, NO API KEY)
+    async function fetchWikiHistory() {
+      if (!selectedCar) return;
+      const query = `${selectedCar.carMake} ${selectedCar.castingName}`.trim();
+      const wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
+
+      try {
+        const res = await fetch(wikiUrl);
+        if (!res.ok) throw new Error("Not found");
+        const data = await res.json();
+
+        if (data.extract) {
+          selectedCar.historyNugget = data.extract;
+          saveToDB(selectedCar);
+          document.getElementById("detail-history").innerText = `"${data.extract}"`;
+          alert("Fetched real-world 1:1 history from Wikipedia!");
+        } else {
+          alert("No exact Wikipedia article found for this vehicle.");
+        }
+      } catch(err) {
+        alert("Could not fetch Wikipedia article. Try editing car make/title.");
+      }
     }
 
     function renderPaginationControls(totalPages) {
@@ -656,25 +765,20 @@
       folderSelect.innerHTML = folders.map(f => `<option value="${f}" ${f === currFolder ? 'selected' : ''}>${f}</option>`).join('');
     }
 
-    // DICE PICK (RANDOM CAR)
+    // DICE PICK
     function pickRandomCar() {
-      if (!catalog.length) {
-        alert("Archive is empty! Import photos first.");
-        return;
-      }
+      if (!catalog.length) return alert("Archive is empty! Import photos first.");
       const randomCar = catalog[Math.floor(Math.random() * catalog.length)];
       openDetailModal(randomCar.id);
     }
 
-    // DRAG AND DROP REORDERING
+    // DRAG AND DROP
     function handleDragStart(e, id) {
       draggedCarId = id;
       e.target.classList.add('card-dragging');
     }
 
-    function handleDragOver(e) {
-      e.preventDefault();
-    }
+    function handleDragOver(e) { e.preventDefault(); }
 
     function handleDrop(e, targetId) {
       e.preventDefault();
@@ -687,16 +791,12 @@
         const [movedCar] = catalog.splice(draggedIdx, 1);
         catalog.splice(targetIdx, 0, movedCar);
 
-        // Reassign sort orders
-        catalog.forEach((car, index) => {
-          car.sortOrder = index;
-        });
-
+        catalog.forEach((car, index) => { car.sortOrder = index; });
         saveMultipleToDB(catalog);
       }
     }
 
-    // BATCH MODE & SELECT ACTIONS
+    // BATCH MODE
     function toggleBatchMode() {
       isBatchMode = !isBatchMode;
       const btnText = document.getElementById("batch-mode-text");
@@ -714,19 +814,13 @@
     }
 
     function handleCardClick(id) {
-      if (isBatchMode) {
-        toggleSelectItem(id);
-      } else {
-        openDetailModal(id);
-      }
+      if (isBatchMode) toggleSelectItem(id);
+      else openDetailModal(id);
     }
 
     function toggleSelectItem(id) {
-      if (selectedIds.has(id)) {
-        selectedIds.delete(id);
-      } else {
-        selectedIds.add(id);
-      }
+      if (selectedIds.has(id)) selectedIds.delete(id);
+      else selectedIds.add(id);
       updateSelectedCountText();
       renderCatalog();
     }
@@ -771,6 +865,13 @@
       document.getElementById("detail-color").innerText = selectedCar.color;
       document.getElementById("detail-year").innerText = selectedCar.releaseYear;
       document.getElementById("detail-history").innerText = `"${selectedCar.historyNugget}"`;
+
+      const starBtn = document.getElementById("detail-fav-star");
+      if (selectedCar.isFavorite) {
+        starBtn.className = "w-5 h-5 text-accent fill-accent";
+      } else {
+        starBtn.className = "w-5 h-5 text-subtle";
+      }
 
       document.getElementById("delete-btn").onclick = () => {
         if(confirm("Delete item from archive?")) deleteMultipleFromDB([selectedCar.id]);
@@ -841,7 +942,7 @@
       });
     }
 
-    // BACKUP & RESTORE JSON
+    // BACKUP & RESTORE
     function exportBackup() {
       if (!catalog.length) return alert("Nothing to export!");
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(catalog));
