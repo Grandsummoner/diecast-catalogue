@@ -69,7 +69,7 @@
   <!-- MODAL: PRE-UPLOAD BRAND PROMPT -->
   <div id="brand-select-modal" class="hidden fixed inset-0 bg-ink/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-surface border-4 border-ink max-w-md w-full p-6 archival-shadow-lg relative">
-      <button onclick="closeModal('brand-select-modal')" class="absolute top-4 right-4 p-1 hover:bg-canvas">
+      <button onclick="closeModal('brand-select-modal')" class="absolute top-4 right-4 p-1 hover:bg-canvas border border-ink">
         <i data-lucide="x" class="w-5 h-5"></i>
       </button>
 
@@ -199,7 +199,7 @@
         
         <!-- FAVOURITES TOGGLE FILTER -->
         <button id="fav-filter-btn" onclick="toggleFavFilter()" class="px-3 py-2.5 border-2 border-ink bg-canvas hover:bg-ink hover:text-surface uppercase flex items-center gap-2">
-          <i data-lucide="star" class="w-4 h-4 text-accent fill-accent"></i>
+          <i data-lucide="star" class="w-4 h-4 text-yellow-500 fill-yellow-400"></i>
           <span id="fav-filter-text">FAVOURITES</span>
         </button>
 
@@ -266,12 +266,19 @@
   <!-- MODAL: CAR DETAILS & EDIT -->
   <div id="detail-modal" class="hidden fixed inset-0 bg-ink/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-surface border-4 border-ink max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 relative archival-shadow-lg">
-      <button onclick="closeModal('detail-modal')" class="absolute top-6 right-6 p-2 bg-canvas border-2 border-ink hover:bg-ink hover:text-surface">
-        <i data-lucide="x" class="w-6 h-6"></i>
-      </button>
+      
+      <!-- FIXED NON-OVERLAPPING MODAL HEADER ACTION BUTTONS -->
+      <div class="absolute top-6 right-6 flex items-center gap-2 z-20">
+        <button onclick="toggleFavCurrent()" class="p-2 border-2 border-ink bg-canvas hover:bg-ink hover:text-surface" title="Toggle Favorite">
+          <i id="detail-fav-star" data-lucide="star" class="w-5 h-5 text-subtle"></i>
+        </button>
+        <button onclick="closeModal('detail-modal')" class="p-2 bg-canvas border-2 border-ink hover:bg-ink hover:text-surface" title="Close Popup">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
 
       <!-- VIEW MODE -->
-      <div id="modal-view-mode">
+      <div id="modal-view-mode" class="pr-20">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-2">
           <div class="border-2 border-ink p-2 bg-canvas flex items-center justify-center relative">
             <img id="detail-img" src="" class="max-h-[350px] object-contain">
@@ -279,17 +286,17 @@
 
           <div class="flex flex-col justify-between">
             <div>
-              <div class="flex items-center justify-between font-mono text-xs font-bold text-accent uppercase mb-2">
+              <!-- ROW 1: BRAND -->
+              <div class="font-mono text-xs font-bold text-accent uppercase mb-1">
                 <span id="detail-brand"></span>
-                <span id="detail-folder-tag" class="bg-canvas text-ink px-2 py-0.5 border border-ink"></span>
               </div>
               
-              <div class="flex items-start justify-between gap-2">
-                <h2 id="detail-title" class="text-3xl font-normal uppercase font-display leading-tight"></h2>
-                <button onclick="toggleFavCurrent()" class="p-1.5 border-2 border-ink bg-canvas hover:bg-ink hover:text-surface">
-                  <i id="detail-fav-star" data-lucide="star" class="w-5 h-5"></i>
-                </button>
+              <!-- ROW 2: FOLDER TAG IF PRESENT -->
+              <div id="detail-folder-row" class="mb-3">
+                <span id="detail-folder-tag" class="bg-canvas text-ink px-2 py-0.5 border border-ink font-mono text-xs font-bold inline-block max-w-full truncate"></span>
               </div>
+              
+              <h2 id="detail-title" class="text-3xl font-normal uppercase font-display leading-tight"></h2>
               
               <div class="mt-6 space-y-2 font-mono text-sm border-t-2 border-b-2 border-ink py-4">
                 <div class="flex justify-between"><span class="text-subtle">CAR MAKE:</span> <span id="detail-make" class="font-bold"></span></div>
@@ -345,7 +352,7 @@
               <input type="text" id="edit-folder" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-3 gap-4">
             <div>
               <label class="block text-subtle font-bold mb-1">CAR MAKE</label>
               <input type="text" id="edit-make" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
@@ -353,6 +360,10 @@
             <div>
               <label class="block text-subtle font-bold mb-1">LIVERY / COLOR</label>
               <input type="text" id="edit-color" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
+            </div>
+            <div>
+              <label class="block text-subtle font-bold mb-1">PHOTO DATE (e.g. 1998, Jul 2012)</label>
+              <input type="text" id="edit-photo-date" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
             </div>
           </div>
           <div>
@@ -450,7 +461,107 @@
           return make;
         }
       }
-      return "Unspecified"; // Never default to "Iy" or "Ap"
+      return "Unspecified";
+    }
+
+    // ZERO-DEPENDENCY BINARY EXIF DATE READER (Tag 0x9003)
+    function readExifDate(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        const blob = file.slice(0, 131072); // Read first 128KB
+        reader.onload = function(e) {
+          try {
+            const buffer = e.target.result;
+            const view = new DataView(buffer);
+            if (view.getUint16(0, false) !== 0xFFD8) return resolve(null); // Not a JPEG
+
+            let length = view.byteLength;
+            let offset = 2;
+
+            while (offset < length) {
+              if (view.getUint16(offset, false) === 0xFFE1) { // APP1 Marker
+                const app1Length = view.getUint16(offset + 2, false);
+                const exifHeader = view.getUint32(offset + 4, false);
+                if (exifHeader === 0x45786966) { // "Exif"
+                  const tiffOffset = offset + 10;
+                  const littleEndian = view.getUint16(tiffOffset, false) === 0x4949;
+                  const count = view.getUint16(tiffOffset + 8, littleEndian);
+                  let exifIFDOffset = 0;
+
+                  for (let i = 0; i < count; i++) {
+                    const tagOffset = tiffOffset + 10 + i * 12;
+                    const tag = view.getUint16(tagOffset, littleEndian);
+                    if (tag === 0x8769) {
+                      exifIFDOffset = view.getUint32(tagOffset + 8, littleEndian);
+                      break;
+                    }
+                  }
+
+                  let searchOffset = exifIFDOffset ? tiffOffset + exifIFDOffset : tiffOffset + 10;
+                  const exifCount = view.getUint16(searchOffset, littleEndian);
+
+                  for (let i = 0; i < exifCount; i++) {
+                    const tagOffset = searchOffset + 2 + i * 12;
+                    const tag = view.getUint16(tagOffset, littleEndian);
+                    if (tag === 0x9003 || tag === 0x9004) { // DateTimeOriginal / CreateDate
+                      const valueOffset = tiffOffset + view.getUint32(tagOffset + 8, littleEndian);
+                      let dateStr = "";
+                      for (let j = 0; j < 19; j++) {
+                        dateStr += String.fromCharCode(view.getUint8(valueOffset + j));
+                      }
+                      const parts = dateStr.split(" ")[0].split(":");
+                      if (parts.length === 3) {
+                        const year = parts[0];
+                        const monthIdx = parseInt(parts[1], 10) - 1;
+                        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                        if (monthNames[monthIdx]) {
+                          return resolve(`${monthNames[monthIdx]} ${year}`);
+                        }
+                      }
+                    }
+                  }
+                }
+                offset += 2 + app1Length;
+              } else if ((view.getUint16(offset, false) & 0xFF00) === 0xFF00) {
+                offset += 2 + view.getUint16(offset + 2, false);
+              } else {
+                break;
+              }
+            }
+          } catch (err) {}
+          resolve(null);
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsArrayBuffer(blob);
+      });
+    }
+
+    async function extractPhotoDate(file) {
+      // 1. Try binary EXIF
+      const exifDate = await readExifDate(file);
+      if (exifDate) return exifDate;
+
+      // 2. Try file.lastModified
+      if (file.lastModified) {
+        const modDate = new Date(file.lastModified);
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        if (!isNaN(modDate.getTime())) {
+          return `${monthNames[modDate.getMonth()]} ${modDate.getFullYear()}`;
+        }
+      }
+
+      // 3. Fallback to current date
+      const now = new Date();
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+    }
+
+    // SMART WIKIPEDIA QUERY CLEANER
+    function cleanWikiQuery(make, title) {
+      let q = `${make !== 'Unspecified' ? make : ''} ${title}`.trim();
+      q = q.replace(/\b(s\d{4}|no\.\d+|\d{2,4}|tp-\d+|hb|rs\s*x|s-series|ap|iy|ae|tr)\b/gi, ' ');
+      q = q.replace(/\s+/g, ' ').trim();
+      return q || title;
     }
 
     // THEME SWITCHER
@@ -505,7 +616,7 @@
     }
 
     // INDEXED DB DATABASE INIT
-    const request = indexedDB.open("DiecastCatalogDB_v6", 1);
+    const request = indexedDB.open("DiecastCatalogDB_v8", 1);
     request.onupgradeneeded = (e) => {
       db = e.target.result;
       if (!db.objectStoreNames.contains("cars")) {
@@ -555,8 +666,8 @@
       };
     }
 
-    // AUTO DATA GENERATOR WITH SMART MAKE DETECTION
-    function getBatchCarData(file, isFolderUpload) {
+    // AUTO DATA GENERATOR
+    async function getBatchCarData(file, isFolderUpload) {
       const filename = file.name;
       const cleanName = filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ").toLowerCase();
       
@@ -571,19 +682,16 @@
       const assignedBrand = localStorage.getItem('pending_batch_brand') || 'Tomica';
       const formattedTitle = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
       const detectedMake = detectCarMake(cleanName);
-
-      const now = new Date();
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const photoDateStr = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+      const detectedPhotoDate = await extractPhotoDate(file);
 
       return {
         castingName: formattedTitle || "Custom Model",
         brand: assignedBrand,
         folderTag: folderName,
         carMake: detectedMake,
-        photoDate: photoDateStr,
+        photoDate: detectedPhotoDate,
         color: "Standard Finish",
-        historyNugget: `The 1:1 ${formattedTitle} represents a distinctive milestone in automotive engineering, celebrated by enthusiasts worldwide.`
+        historyNugget: `The 1:1 ${formattedTitle} represents a landmark model in automotive history, celebrated by car enthusiasts worldwide.`
       };
     }
 
@@ -608,7 +716,7 @@
         progressBar.style.width = `${Math.round(((i + 1) / files.length) * 100)}%`;
 
         const base64 = await toBase64(file);
-        const autoData = getBatchCarData(file, isFolder);
+        const autoData = await getBatchCarData(file, isFolder);
 
         newCars.push({
           id: 'CAR_' + (startTime + i) + '_' + Math.random().toString(36).substr(2, 4),
@@ -635,7 +743,7 @@
       event.target.value = "";
     }
 
-    // RENDER CATALOG GRID WITH 2-ROW HEADER
+    // RENDER CATALOG GRID WITH 2-ROW HEADER & YELLOW FAVORITE STAR
     function getFilteredCatalog() {
       const search = document.getElementById("search-box").value.toLowerCase().trim();
       const brandFilter = document.getElementById("brand-filter").value;
@@ -707,7 +815,7 @@
             ` : ''}
 
             <div>
-              <!-- HEADER ROW 1: BRAND & ACTION ICONS -->
+              <!-- ROW 1: BRAND & ACTION ICONS -->
               <div class="border-b-2 border-ink p-3 bg-canvas flex justify-between items-center">
                 <span class="text-accent font-mono text-xs font-bold uppercase tracking-wider">${car.brand}</span>
                 <div class="flex items-center gap-1">
@@ -715,12 +823,12 @@
                     <i data-lucide="sparkles" class="w-3.5 h-3.5 text-accent"></i>
                   </button>
                   <button onclick="event.stopPropagation(); toggleFav('${car.id}')" class="p-1.5 bg-surface border border-ink hover:bg-ink hover:text-surface" title="Favorite">
-                    <i data-lucide="star" class="w-3.5 h-3.5 ${car.isFavorite ? 'text-accent fill-accent' : 'text-subtle'}"></i>
+                    <i data-lucide="star" class="w-3.5 h-3.5 ${car.isFavorite ? 'text-yellow-500 fill-yellow-400' : 'text-subtle'}"></i>
                   </button>
                 </div>
               </div>
 
-              <!-- HEADER ROW 2: FOLDER TAG IF PRESENT -->
+              <!-- ROW 2: FOLDER TAG IF PRESENT -->
               ${car.folderTag ? `
                 <div class="bg-canvas border-b-2 border-ink px-3 py-1.5">
                   <span class="bg-surface border border-ink px-2 py-0.5 font-mono text-[10px] uppercase font-bold text-ink inline-block truncate max-w-full">
@@ -742,7 +850,7 @@
                     <span>MAKE: <strong class="text-ink">${car.carMake || 'Unspecified'}</strong></span>
                   </div>
                   <div class="text-[10px] text-subtle tracking-tight">
-                    Photo from: ${car.photoDate || 'Aug 2026'}
+                    Photo from: ${car.photoDate || 'Unspecified'}
                   </div>
                 </div>
               </div>
@@ -763,11 +871,17 @@
     }
 
     function toggleFavCurrent() {
-      if (selectedCar) {
-        selectedCar.isFavorite = !selectedCar.isFavorite;
-        saveToDB(selectedCar);
-        openDetailModal(selectedCar.id);
+      if (!selectedCar) return;
+      selectedCar.isFavorite = !selectedCar.isFavorite;
+      saveToDB(selectedCar);
+      
+      const starBtnIcon = document.getElementById("detail-fav-star");
+      if (selectedCar.isFavorite) {
+        starBtnIcon.className = "w-5 h-5 text-yellow-500 fill-yellow-400";
+      } else {
+        starBtnIcon.className = "w-5 h-5 text-subtle";
       }
+      lucide.createIcons();
     }
 
     function toggleFavFilter() {
@@ -782,14 +896,27 @@
       renderCatalog();
     }
 
-    // LIVE WIKIPEDIA HISTORY FETCH
+    // SMART WIKIPEDIA 1:1 HISTORY FETCH
     async function fetchWikiHistory() {
       if (!selectedCar) return;
-      const query = `${selectedCar.carMake} ${selectedCar.castingName}`.trim();
-      const wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
-
+      const cleanedQuery = cleanWikiQuery(selectedCar.carMake, selectedCar.castingName);
+      
       try {
-        const res = await fetch(wikiUrl);
+        let wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanedQuery)}`;
+        let res = await fetch(wikiUrl);
+        
+        if (!res.ok) {
+          const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanedQuery)}&format=json&origin=*`;
+          const searchRes = await fetch(searchUrl);
+          const searchData = await searchRes.json();
+
+          if (searchData.query && searchData.query.search.length > 0) {
+            const bestTitle = searchData.query.search[0].title;
+            wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`;
+            res = await fetch(wikiUrl);
+          }
+        }
+
         if (!res.ok) throw new Error("Not found");
         const data = await res.json();
 
@@ -802,7 +929,7 @@
           alert("No exact Wikipedia article found for this vehicle.");
         }
       } catch(err) {
-        alert("Could not fetch Wikipedia article. Try editing car make/title.");
+        alert("Could not fetch Wikipedia article. Try editing car make or title.");
       }
     }
 
@@ -934,22 +1061,34 @@
 
       document.getElementById("detail-img").src = selectedCar.image;
       document.getElementById("detail-brand").innerText = selectedCar.brand;
-      document.getElementById("detail-folder-tag").innerText = selectedCar.folderTag ? `📁 ${selectedCar.folderTag}` : '';
+      
+      const folderRow = document.getElementById("detail-folder-row");
+      const folderTagSpan = document.getElementById("detail-folder-tag");
+      if (selectedCar.folderTag) {
+        folderTagSpan.innerText = `📁 ${selectedCar.folderTag}`;
+        folderRow.classList.remove("hidden");
+      } else {
+        folderRow.classList.add("hidden");
+      }
+
       document.getElementById("detail-title").innerText = selectedCar.castingName;
       document.getElementById("detail-make").innerText = selectedCar.carMake || 'Unspecified';
       document.getElementById("detail-color").innerText = selectedCar.color;
-      document.getElementById("detail-photo-date").innerText = selectedCar.photoDate || 'Aug 2026';
+      document.getElementById("detail-photo-date").innerText = selectedCar.photoDate || 'Unspecified';
       document.getElementById("detail-history").innerText = `"${selectedCar.historyNugget}"`;
 
       const starBtn = document.getElementById("detail-fav-star");
       if (selectedCar.isFavorite) {
-        starBtn.className = "w-5 h-5 text-accent fill-accent";
+        starBtn.className = "w-5 h-5 text-yellow-500 fill-yellow-400";
       } else {
         starBtn.className = "w-5 h-5 text-subtle";
       }
 
       document.getElementById("delete-btn").onclick = () => {
-        if(confirm("Delete item from archive?")) deleteMultipleFromDB([selectedCar.id]);
+        if(confirm("Delete item from archive?")) {
+          deleteMultipleFromDB([selectedCar.id]);
+          closeModal('detail-modal');
+        }
       };
       document.getElementById("open-poster-btn").onclick = () => {
         closeModal('detail-modal');
@@ -966,6 +1105,7 @@
       document.getElementById("edit-folder").value = selectedCar.folderTag || '';
       document.getElementById("edit-make").value = selectedCar.carMake || '';
       document.getElementById("edit-color").value = selectedCar.color;
+      document.getElementById("edit-photo-date").value = selectedCar.photoDate || '';
       document.getElementById("edit-history").value = selectedCar.historyNugget;
 
       document.getElementById("modal-view-mode").classList.add("hidden");
@@ -983,6 +1123,7 @@
       selectedCar.folderTag = document.getElementById("edit-folder").value || '';
       selectedCar.carMake = document.getElementById("edit-make").value || 'Unspecified';
       selectedCar.color = document.getElementById("edit-color").value || selectedCar.color;
+      selectedCar.photoDate = document.getElementById("edit-photo-date").value || 'Unspecified';
       selectedCar.historyNugget = document.getElementById("edit-history").value || selectedCar.historyNugget;
 
       saveToDB(selectedCar);
