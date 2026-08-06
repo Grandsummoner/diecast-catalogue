@@ -74,14 +74,14 @@
       </button>
 
       <h3 class="text-2xl font-black font-display uppercase mb-2">Select Brand for Batch</h3>
-      <p class="font-mono text-xs text-subtle mb-4">Specify the brand name for this upload batch before selecting files or folders.</p>
+      <p class="font-mono text-xs text-subtle mb-4">Specify the diecast brand name for this batch before selecting files/folders.</p>
 
       <div class="space-y-4 font-mono text-xs">
         <div>
           <label class="block font-bold mb-1">SELECT KNOWN BRAND:</label>
           <select id="preset-brand-select" onchange="document.getElementById('custom-brand-input').value = this.value" class="w-full bg-canvas border-2 border-ink p-3 font-bold uppercase">
-            <option value="Mini GT">Mini GT</option>
             <option value="Tomica">Tomica</option>
+            <option value="Mini GT">Mini GT</option>
             <option value="Kaido House">Kaido House</option>
             <option value="AutoArt">AutoArt</option>
             <option value="Matchbox">Matchbox</option>
@@ -95,7 +95,7 @@
 
         <div>
           <label class="block font-bold mb-1">OR TYPE CUSTOM BRAND:</label>
-          <input type="text" id="custom-brand-input" value="Mini GT" placeholder="e.g. Spark 43, Majorette" class="w-full bg-canvas border-2 border-ink p-3 font-bold uppercase">
+          <input type="text" id="custom-brand-input" value="Tomica" placeholder="e.g. Spark 43, Majorette" class="w-full bg-canvas border-2 border-ink p-3 font-bold uppercase">
         </div>
 
         <button onclick="confirmBrandAndTriggerUpload()" class="w-full bg-accent text-surface py-4 font-bold uppercase border-2 border-ink archival-shadow hover:bg-ink transition-colors flex items-center justify-center gap-2">
@@ -130,7 +130,7 @@
         </div>
       </div>
 
-      <!-- HEADER ACTIONS IN EXACT REQUESTED ORDER -->
+      <!-- HEADER ACTIONS -->
       <div class="flex flex-wrap items-center gap-3">
         
         <!-- THEME SWITCHER -->
@@ -144,7 +144,7 @@
         </div>
 
         <!-- 1. CAR OF THE DAY -->
-        <button onclick="pickRandomCar()" class="bg-canvas border-2 border-ink hover:bg-ink hover:text-surface px-4 py-3 font-mono font-bold text-xs uppercase flex items-center gap-2 archival-shadow" title="Pick Random Car of the Day">
+        <button onclick="pickRandomCar()" class="bg-canvas border-2 border-ink hover:bg-ink hover:text-surface px-4 py-3 font-mono font-bold text-xs uppercase flex items-center gap-2 archival-shadow">
           <span class="text-lg leading-none">🎲</span>
           <span>CAR OF THE DAY</span>
         </button>
@@ -294,7 +294,7 @@
               <div class="mt-6 space-y-2 font-mono text-sm border-t-2 border-b-2 border-ink py-4">
                 <div class="flex justify-between"><span class="text-subtle">CAR MAKE:</span> <span id="detail-make" class="font-bold"></span></div>
                 <div class="flex justify-between"><span class="text-subtle">LIVERY/COLOR:</span> <span id="detail-color" class="font-bold"></span></div>
-                <div class="flex justify-between"><span class="text-subtle">YEAR:</span> <span id="detail-year" class="font-bold"></span></div>
+                <div class="flex justify-between"><span class="text-subtle">PHOTO DATE:</span> <span id="detail-photo-date" class="font-bold"></span></div>
               </div>
 
               <!-- 1:1 Real History Section -->
@@ -345,7 +345,7 @@
               <input type="text" id="edit-folder" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
             </div>
           </div>
-          <div class="grid grid-cols-3 gap-4">
+          <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-subtle font-bold mb-1">CAR MAKE</label>
               <input type="text" id="edit-make" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
@@ -353,10 +353,6 @@
             <div>
               <label class="block text-subtle font-bold mb-1">LIVERY / COLOR</label>
               <input type="text" id="edit-color" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
-            </div>
-            <div>
-              <label class="block text-subtle font-bold mb-1">YEAR</label>
-              <input type="number" id="edit-year" class="w-full bg-canvas border-2 border-ink p-2 font-bold uppercase">
             </div>
           </div>
           <div>
@@ -438,6 +434,25 @@
     let currentPage = 1;
     const itemsPerPage = 36;
 
+    // KNOWN AUTOMOTIVE MAKES DICTIONARY
+    const knownMakes = [
+      "Toyota", "Honda", "Nissan", "Mazda", "Subaru", "Mitsubishi", "Suzuki", "Daihatsu", "Isuzu", "Mitsuoka",
+      "Porsche", "BMW", "Mercedes-Benz", "Mercedes", "Audi", "Volkswagen", "Peugeot", "Renault",
+      "Ferrari", "Lamborghini", "Maserati", "Alfa Romeo", "Fiat", "Lancia", "Ford", "Chevrolet", "Dodge",
+      "Chrysler", "Jeep", "Cadillac", "Lincoln", "Pontiac", "Buick", "Plymouth", "Shelby",
+      "Aston Martin", "Jaguar", "Land Rover", "Lotus", "Bentley", "Rolls-Royce", "McLaren", "Bugatti", "Volvo", "Hyundai", "Kia"
+    ];
+
+    function detectCarMake(cleanName) {
+      const lower = cleanName.toLowerCase();
+      for (const make of knownMakes) {
+        if (lower.includes(make.toLowerCase())) {
+          return make;
+        }
+      }
+      return "Unspecified"; // Never default to "Iy" or "Ap"
+    }
+
     // THEME SWITCHER
     function switchTheme(themeKey) {
       if (themeKey === 'default') {
@@ -474,10 +489,11 @@
     function openBrandSelectModal(type) {
       targetUploadType = type;
       document.getElementById('brand-select-modal').classList.remove('hidden');
+      lucide.createIcons();
     }
 
     function confirmBrandAndTriggerUpload() {
-      const brandVal = document.getElementById('custom-brand-input').value.trim() || 'Mini GT';
+      const brandVal = document.getElementById('custom-brand-input').value.trim() || 'Tomica';
       localStorage.setItem('pending_batch_brand', brandVal);
       closeModal('brand-select-modal');
 
@@ -489,7 +505,7 @@
     }
 
     // INDEXED DB DATABASE INIT
-    const request = indexedDB.open("DiecastCatalogDB_v5", 1);
+    const request = indexedDB.open("DiecastCatalogDB_v6", 1);
     request.onupgradeneeded = (e) => {
       db = e.target.result;
       if (!db.objectStoreNames.contains("cars")) {
@@ -511,6 +527,7 @@
         catalog = getAll.result.sort((a,b) => (a.sortOrder ?? a.createdAt) - (b.sortOrder ?? b.createdAt));
         updateFilterOptions();
         renderCatalog();
+        lucide.createIcons();
       };
     }
 
@@ -538,7 +555,7 @@
       };
     }
 
-    // AUTO DATA GENERATOR
+    // AUTO DATA GENERATOR WITH SMART MAKE DETECTION
     function getBatchCarData(file, isFolderUpload) {
       const filename = file.name;
       const cleanName = filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ").toLowerCase();
@@ -551,15 +568,20 @@
         }
       }
 
-      const assignedBrand = localStorage.getItem('pending_batch_brand') || 'Mini GT';
+      const assignedBrand = localStorage.getItem('pending_batch_brand') || 'Tomica';
       const formattedTitle = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+      const detectedMake = detectCarMake(cleanName);
+
+      const now = new Date();
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const photoDateStr = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
 
       return {
         castingName: formattedTitle || "Custom Model",
         brand: assignedBrand,
         folderTag: folderName,
-        carMake: formattedTitle.split(' ')[0] || "Automotive",
-        releaseYear: new Date().getFullYear(),
+        carMake: detectedMake,
+        photoDate: photoDateStr,
         color: "Standard Finish",
         historyNugget: `The 1:1 ${formattedTitle} represents a distinctive milestone in automotive engineering, celebrated by enthusiasts worldwide.`
       };
@@ -595,7 +617,7 @@
           brand: autoData.brand,
           folderTag: autoData.folderTag,
           carMake: autoData.carMake,
-          releaseYear: autoData.releaseYear,
+          photoDate: autoData.photoDate,
           color: autoData.color,
           historyNugget: autoData.historyNugget,
           isFavorite: false,
@@ -613,7 +635,7 @@
       event.target.value = "";
     }
 
-    // RENDER CATALOG GRID (UN-BOLDED TITLES & CLEAN HEADER ICONS)
+    // RENDER CATALOG GRID WITH 2-ROW HEADER
     function getFilteredCatalog() {
       const search = document.getElementById("search-box").value.toLowerCase().trim();
       const brandFilter = document.getElementById("brand-filter").value;
@@ -659,6 +681,7 @@
       if (totalUnits === 0) {
         grid.innerHTML = "";
         emptyState.classList.remove("hidden");
+        lucide.createIcons();
         return;
       }
 
@@ -666,7 +689,6 @@
 
       grid.innerHTML = pageItems.map(car => {
         const isChecked = selectedIds.has(car.id);
-        const folderBadge = car.folderTag ? `<span class="bg-canvas border border-ink px-2 py-0.5 font-mono text-[10px] uppercase font-bold">📁 ${car.folderTag}</span>` : '';
 
         return `
           <div 
@@ -677,16 +699,6 @@
             onclick="handleCardClick('${car.id}')"
             class="bg-surface border-2 border-ink cursor-pointer hover:-translate-y-1 transition-transform archival-shadow flex flex-col justify-between relative group ${isChecked ? 'ring-4 ring-accent' : ''}"
           >
-            <!-- CARD HEADER ACTION ICONS -->
-            <div class="absolute top-3 right-3 z-20 flex items-center gap-1">
-              <button onclick="event.stopPropagation(); openPosterModal('${car.id}')" class="p-1.5 bg-surface border border-ink hover:bg-ink hover:text-surface" title="Poster Studio">
-                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-accent"></i>
-              </button>
-              <button onclick="event.stopPropagation(); toggleFav('${car.id}')" class="p-1.5 bg-surface border border-ink hover:bg-ink hover:text-surface" title="Favorite">
-                <i data-lucide="star" class="w-3.5 h-3.5 ${car.isFavorite ? 'text-accent fill-accent' : 'text-subtle'}"></i>
-              </button>
-            </div>
-
             <!-- BATCH CHECKBOX -->
             ${isBatchMode ? `
               <div class="absolute top-3 left-3 z-20">
@@ -695,10 +707,27 @@
             ` : ''}
 
             <div>
-              <div class="border-b-2 border-ink px-4 py-2 bg-canvas flex justify-between items-center font-mono text-xs font-bold uppercase tracking-wider pr-16">
-                <span class="text-accent">${car.brand}</span>
-                ${folderBadge}
+              <!-- HEADER ROW 1: BRAND & ACTION ICONS -->
+              <div class="border-b-2 border-ink p-3 bg-canvas flex justify-between items-center">
+                <span class="text-accent font-mono text-xs font-bold uppercase tracking-wider">${car.brand}</span>
+                <div class="flex items-center gap-1">
+                  <button onclick="event.stopPropagation(); openPosterModal('${car.id}')" class="p-1.5 bg-surface border border-ink hover:bg-ink hover:text-surface" title="Poster Studio">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-accent"></i>
+                  </button>
+                  <button onclick="event.stopPropagation(); toggleFav('${car.id}')" class="p-1.5 bg-surface border border-ink hover:bg-ink hover:text-surface" title="Favorite">
+                    <i data-lucide="star" class="w-3.5 h-3.5 ${car.isFavorite ? 'text-accent fill-accent' : 'text-subtle'}"></i>
+                  </button>
+                </div>
               </div>
+
+              <!-- HEADER ROW 2: FOLDER TAG IF PRESENT -->
+              ${car.folderTag ? `
+                <div class="bg-canvas border-b-2 border-ink px-3 py-1.5">
+                  <span class="bg-surface border border-ink px-2 py-0.5 font-mono text-[10px] uppercase font-bold text-ink inline-block truncate max-w-full">
+                    📁 ${car.folderTag}
+                  </span>
+                </div>
+              ` : ''}
 
               <div class="aspect-[4/3] bg-canvas border-b-2 border-ink flex items-center justify-center p-2">
                 <img src="${car.image}" alt="${car.castingName}" class="w-full h-full object-contain" loading="lazy">
@@ -706,11 +735,15 @@
 
               <!-- UN-BOLDED FILENAME / TITLE -->
               <div class="p-4">
-                <h2 class="text-lg font-normal uppercase font-display leading-snug text-ink">${car.castingName}</h2>
+                <h2 class="text-base font-normal uppercase font-display leading-snug text-ink">${car.castingName}</h2>
                 
-                <div class="mt-3 flex items-center justify-between text-xs font-mono text-subtle border-t border-borderLine pt-2">
-                  <span>MAKE: ${car.carMake}</span>
-                  <span>${car.releaseYear}</span>
+                <div class="mt-3 space-y-1 text-xs font-mono text-subtle border-t border-borderLine pt-2">
+                  <div class="flex justify-between items-center">
+                    <span>MAKE: <strong class="text-ink">${car.carMake || 'Unspecified'}</strong></span>
+                  </div>
+                  <div class="text-[10px] text-subtle tracking-tight">
+                    Photo from: ${car.photoDate || 'Aug 2026'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -903,9 +936,9 @@
       document.getElementById("detail-brand").innerText = selectedCar.brand;
       document.getElementById("detail-folder-tag").innerText = selectedCar.folderTag ? `📁 ${selectedCar.folderTag}` : '';
       document.getElementById("detail-title").innerText = selectedCar.castingName;
-      document.getElementById("detail-make").innerText = selectedCar.carMake;
+      document.getElementById("detail-make").innerText = selectedCar.carMake || 'Unspecified';
       document.getElementById("detail-color").innerText = selectedCar.color;
-      document.getElementById("detail-year").innerText = selectedCar.releaseYear;
+      document.getElementById("detail-photo-date").innerText = selectedCar.photoDate || 'Aug 2026';
       document.getElementById("detail-history").innerText = `"${selectedCar.historyNugget}"`;
 
       const starBtn = document.getElementById("detail-fav-star");
@@ -931,9 +964,8 @@
       document.getElementById("edit-title").value = selectedCar.castingName;
       document.getElementById("edit-brand").value = selectedCar.brand;
       document.getElementById("edit-folder").value = selectedCar.folderTag || '';
-      document.getElementById("edit-make").value = selectedCar.carMake;
+      document.getElementById("edit-make").value = selectedCar.carMake || '';
       document.getElementById("edit-color").value = selectedCar.color;
-      document.getElementById("edit-year").value = selectedCar.releaseYear;
       document.getElementById("edit-history").value = selectedCar.historyNugget;
 
       document.getElementById("modal-view-mode").classList.add("hidden");
@@ -949,9 +981,8 @@
       selectedCar.castingName = document.getElementById("edit-title").value || selectedCar.castingName;
       selectedCar.brand = document.getElementById("edit-brand").value || selectedCar.brand;
       selectedCar.folderTag = document.getElementById("edit-folder").value || '';
-      selectedCar.carMake = document.getElementById("edit-make").value || selectedCar.carMake;
+      selectedCar.carMake = document.getElementById("edit-make").value || 'Unspecified';
       selectedCar.color = document.getElementById("edit-color").value || selectedCar.color;
-      selectedCar.releaseYear = parseInt(document.getElementById("edit-year").value) || selectedCar.releaseYear;
       selectedCar.historyNugget = document.getElementById("edit-history").value || selectedCar.historyNugget;
 
       saveToDB(selectedCar);
@@ -964,7 +995,7 @@
       if (!selectedCar) return;
 
       document.getElementById("poster-spec-num").innerText = `SPECIMEN NO. #${selectedCar.id.slice(-4)}`;
-      document.getElementById("poster-make").innerText = selectedCar.carMake;
+      document.getElementById("poster-make").innerText = selectedCar.carMake || 'UNSPECIFIED';
       document.getElementById("poster-folder").innerText = selectedCar.folderTag ? `📁 ${selectedCar.folderTag}` : 'ARCHIVE';
       document.getElementById("poster-img").src = selectedCar.image;
       document.getElementById("poster-title").innerText = selectedCar.castingName;
@@ -972,6 +1003,7 @@
       document.getElementById("poster-brand").innerText = `BRAND: ${selectedCar.brand}`;
 
       document.getElementById("poster-modal").classList.remove("hidden");
+      lucide.createIcons();
     }
 
     function downloadPoster() {
@@ -1027,6 +1059,11 @@
         reader.onerror = error => reject(error);
       });
     }
+
+    // ENSURE ICONS RENDER ON INITIAL LOAD
+    window.addEventListener('load', () => {
+      lucide.createIcons();
+    });
   </script>
 </body>
 </html>
