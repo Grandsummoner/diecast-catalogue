@@ -382,9 +382,9 @@
 
   <!-- MODAL: POSTER STUDIO (WITH STICKY ALWAYS-VISIBLE CLOSE BUTTON) -->
   <div id="poster-modal" class="hidden fixed inset-0 bg-ink/90 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-surface border-4 border-ink max-w-4xl w-full p-6 md:p-8 my-8 archival-shadow-lg max-h-[92vh] flex flex-col overflow-y-auto relative">
+    <div class="bg-surface border-4 border-ink max-w-2xl w-full p-6 md:p-8 my-8 archival-shadow-lg max-h-[92vh] flex flex-col overflow-y-auto relative">
       
-      <!-- STICKY TOP HEADER WITH CLOSE BUTTON -->
+      <!-- STICKY TOP HEADER -->
       <div class="sticky top-0 bg-surface z-30 border-b-2 border-ink pb-4 pt-2 mb-6 flex justify-between items-center">
         <div>
           <h3 class="text-2xl font-black font-display uppercase">Poster Studio</h3>
@@ -396,40 +396,56 @@
       </div>
 
       <!-- CANVAS PREVIEW AREA -->
-      <div class="flex justify-center bg-canvas border-2 border-ink p-4 md:p-8 overflow-x-auto">
-        <div id="poster-canvas" class="w-[450px] min-h-[580px] bg-[#FAF8F5] border-4 border-ink p-8 flex flex-col justify-between text-ink relative box-border">
+      <div class="flex justify-center items-center bg-canvas border-2 border-ink p-6 overflow-x-auto my-auto">
+        
+        <!-- POSTER CANVAS (A4 ARCHIVAL PRINT FORMAT) -->
+        <div id="poster-canvas" class="w-[420px] h-[600px] bg-surface border-4 border-ink p-6 flex flex-col justify-between text-ink relative box-border archival-shadow">
+          
+          <!-- POSTER HEADER -->
           <div>
-            <div class="flex justify-between items-start border-b-4 border-ink pb-4">
+            <div class="flex justify-between items-start border-b-2 border-ink pb-3 mb-3">
               <div>
-                <p id="poster-spec-num" class="font-mono text-xs font-black tracking-widest text-accent uppercase"></p>
-                <h1 id="poster-make" class="text-4xl font-black font-display tracking-tight uppercase leading-none mt-1"></h1>
+                <p id="poster-spec-num" class="font-mono text-[10px] font-bold tracking-widest text-accent uppercase"></p>
+                <h1 id="poster-make" class="text-3xl font-black font-display tracking-tight uppercase leading-none mt-0.5"></h1>
               </div>
-              <span id="poster-folder" class="font-mono text-sm font-bold border-2 border-ink px-2 py-1 bg-surface"></span>
+              <span id="poster-folder" class="font-mono text-xs font-bold border border-ink px-2 py-1 bg-canvas"></span>
             </div>
 
-            <div class="my-6 aspect-[4/3] flex items-center justify-center p-4 bg-surface border-2 border-ink">
-              <img id="poster-img" src="" class="max-h-52 object-contain">
+            <!-- PHOTO FRAME -->
+            <div class="my-4 aspect-[4/3] flex items-center justify-center p-3 bg-canvas border-2 border-ink overflow-hidden">
+              <img id="poster-img" src="" class="w-full h-full object-contain">
             </div>
 
-            <h2 id="poster-title" class="text-2xl font-normal uppercase font-display border-b-2 border-ink pb-2"></h2>
+            <!-- CASTING TITLE -->
+            <h2 id="poster-title" class="text-xl font-normal uppercase font-display border-b-2 border-ink pb-2 leading-tight"></h2>
           </div>
 
-          <div class="mt-4 space-y-4">
-            <div id="poster-history" class="bg-surface border-2 border-ink p-3 font-sans text-xs leading-relaxed font-semibold"></div>
+          <!-- POSTER BODY & FOOTER -->
+          <div class="space-y-3">
+            <div class="bg-canvas border border-ink p-3">
+              <p class="font-mono text-[10px] font-bold uppercase text-accent mb-1 flex items-center gap-1">
+                <i data-lucide="help-circle" class="w-3 h-3"></i> DID YOU KNOW?
+              </p>
+              <p id="poster-history" class="font-sans text-xs leading-relaxed font-medium text-ink/90"></p>
+            </div>
             
-            <div class="flex justify-between items-end border-t-2 border-ink pt-3 font-mono text-[10px] text-subtle font-bold uppercase">
+            <div class="flex justify-between items-center border-t-2 border-ink pt-2 font-mono text-[10px] text-subtle font-bold uppercase">
               <div id="poster-brand"></div>
-              <div>COLLECTOR INDEX ARCHIVE</div>
+              <div>APEX ARCHIVE INDEX</div>
             </div>
           </div>
+
         </div>
       </div>
 
-      <div class="mt-6 flex justify-end gap-4">
-        <button onclick="downloadPoster()" class="bg-accent hover:bg-ink text-surface px-8 py-4 font-mono font-bold text-sm tracking-wider uppercase flex items-center gap-3 border-2 border-ink archival-shadow">
-          <i data-lucide="download" class="w-5 h-5"></i> Export High-Res PNG
+      <!-- EXPORT ACTION BAR -->
+      <div class="mt-6 pt-4 border-t-2 border-ink flex justify-between items-center">
+        <span class="font-mono text-xs text-subtle font-bold">FORMAT: 300 DPI PNG PRINT</span>
+        <button onclick="downloadPoster()" class="bg-accent hover:bg-ink text-surface px-8 py-3.5 font-mono font-bold text-xs tracking-wider uppercase flex items-center gap-3 border-2 border-ink archival-shadow transition-colors">
+          <i data-lucide="download" class="w-4 h-4"></i> Export High-Res PNG
         </button>
       </div>
+
     </div>
   </div>
 
@@ -642,7 +658,7 @@
     }
 
     // INDEXED DB DATABASE INIT
-    const request = indexedDB.open("DiecastCatalogDB_v9", 1);
+    const request = indexedDB.open("DiecastCatalogDB_v10", 1);
     request.onupgradeneeded = (e) => {
       db = e.target.result;
       if (!db.objectStoreNames.contains("cars")) {
@@ -712,7 +728,7 @@
 
       // AUTOMATIC WIKI FETCH ON UPLOAD
       const wikiFact = await fetchWikiSummaryText(detectedMake, formattedTitle);
-      const defaultFact = `The 1:1 ${formattedTitle} represents a landmark model in automotive history, celebrated by car enthusiasts worldwide.`;
+      const defaultFact = `The ${formattedTitle} is a landmark model in automotive history, celebrated by car enthusiasts worldwide.`;
 
       return {
         castingName: formattedTitle || "Custom Model",
@@ -1141,7 +1157,6 @@
       selectedCar.photoDate = document.getElementById("edit-photo-date").value || 'Unspecified';
       selectedCar.historyNugget = document.getElementById("edit-history").value || selectedCar.historyNugget;
 
-      // Update catalog array in memory immediately
       const idx = catalog.findIndex(c => c.id === selectedCar.id);
       if (idx !== -1) catalog[idx] = { ...selectedCar };
 
@@ -1156,12 +1171,16 @@
       selectedCar = catalog.find(c => c.id === id);
       if (!selectedCar) return;
 
-      document.getElementById("poster-spec-num").innerText = `SPECIMEN NO. #${selectedCar.id.slice(-4)}`;
+      document.getElementById("poster-spec-num").innerText = `SPECIMEN #${selectedCar.id.slice(-5)}`;
       document.getElementById("poster-make").innerText = selectedCar.carMake !== 'Unspecified' ? selectedCar.carMake : selectedCar.brand;
       document.getElementById("poster-folder").innerText = selectedCar.folderTag ? `📁 ${selectedCar.folderTag}` : 'ARCHIVE';
       document.getElementById("poster-img").src = selectedCar.image;
       document.getElementById("poster-title").innerText = selectedCar.castingName;
-      document.getElementById("poster-history").innerText = `"${selectedCar.historyNugget}"`;
+      
+      let cleanHistory = selectedCar.historyNugget || '';
+      cleanHistory = cleanHistory.replace(/^The 1:1\s+/i, 'The ');
+      document.getElementById("poster-history").innerText = `"${cleanHistory}"`;
+
       document.getElementById("poster-brand").innerText = `BRAND: ${selectedCar.brand}`;
 
       document.getElementById("poster-modal").classList.remove("hidden");
